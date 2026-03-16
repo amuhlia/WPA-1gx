@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta name="theme-color" content="#4a76ff" />
+  <title>WPA-1gx Carousel</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <h1 class="title">Carousel PWA</h1>
+      <p class="subtitle">Desliza las imágenes y dona si te gusta.</p>
+    </header>
+
+    <section class="carousel" aria-label="Galería de imágenes">
+      <button class="nav prev" id="prevBtn" aria-label="Anterior">‹</button>
+      <div class="slide">
+        <img id="carouselImage" src="images/photo_2026-03-15_19-45-32.jpg" alt="Imagen 1 del carrusel" />
+      </div>
+      <button class="nav next" id="nextBtn" aria-label="Siguiente">›</button>
+    </section>
+
+    <div class="controls">
+      <button class="btn" id="donateBtn">Donar</button>
+      <button class="btn" id="walletBtn">Billetera</button>
+    </div>
+
+    <aside class="donate-strip" id="donateStrip" aria-hidden="true">
+      <div class="donate-strip__inner">
+        <div class="donate-strip__header">
+          <h2>Elige un monto</h2>
+          <button class="icon-btn" id="closeDonate" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="donate-options">
+          <button class="donate-option" data-value="50">$50</button>
+          <button class="donate-option" data-value="100">$100</button>
+          <button class="donate-option" data-value="500">$500</button>
+        </div>
+        <p class="donate-note">Gracias por apoyar este demo.</p>
+      </div>
+    </aside>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <aside class="wallet-strip" id="walletStrip" aria-hidden="true">
+    <div class="wallet-strip__inner">
+      <div class="wallet-strip__header">
+        <h2>Métodos de Pago</h2>
+        <button class="icon-btn" id="closeWallet" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="wallet-options">
+        <button class="wallet-option" data-method="card">💳 Tarjeta de Crédito</button>
+        <button class="wallet-option" data-method="paypal">🅿️ PayPal</button>
+        <button class="wallet-option" data-method="transfer">🏦 Transferencia Bancaria</button>
+        <button class="wallet-option" data-method="crypto">₿ Criptomonedas</button>
+      </div>
+      <p class="wallet-note">Selecciona tu método de pago preferido.</p>
+    </div>
+  </aside>
+
+  <script src="main-v3.js" defer></script>
+</body>
+</html>
