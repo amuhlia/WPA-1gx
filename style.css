@@ -27,6 +27,16 @@ body {
   margin-bottom: 1rem;
 }
 
+.active-card-info {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  font-size: 0.75rem;
+  opacity: 0.8;
+  line-height: 1.2;
+  text-align: left;
+}
+
 .title {
   margin: 0;
   font-size: 1.6rem;
@@ -355,20 +365,107 @@ body {
   color: #ff4444;
 }
 
-.card-add-btn {
-  width: 100%;
+.card-item.active {
+  border-color: #4a76ff;
+  box-shadow: 0 0 0 2px rgba(74, 118, 255, 0.35);
+}
+
+.card-item__use {
+  background: rgba(74, 118, 255, 0.15);
+  border: 1px solid rgba(74, 118, 255, 0.5);
+  border-radius: 999px;
+  color: #4a76ff;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  margin-left: 0.75rem;
+}
+
+.card-item__use:hover {
+  background: rgba(74, 118, 255, 0.25);
+}
+
+.saved-card-summary {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 1rem;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 1rem;
-  border: 2px dashed rgba(74, 118, 255, 0.5);
-  border-radius: 12px;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.link-btn {
+  border: none;
   background: transparent;
   color: #4a76ff;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  padding: 0.25rem 0.5rem;
+}
+
+.success-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.success-modal[hidden] {
+  display: none !important;
+  opacity: 0;
+}
+
+.success-modal__content {
+  background: white;
+  padding: 2rem;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  animation: bounceIn 0.6s ease;
+  position: relative;
+}
+
+.success-modal__close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #666;
+}
+
+.success-modal__close:hover {
+  color: #333;
+}
+
+.success-modal__content h2 {
+  color: #4a76ff;
+  margin: 0 0 1rem;
+  font-size: 2rem;
+}
+
+.success-modal__content p {
+  margin: 0;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .card-add-btn:hover {

@@ -2,6 +2,31 @@
 
 ## Instrucciones paso a paso para vincular tu cuenta de Bancoppel
 
+### Paso 0: Crear cuenta en Stripe y obtener claves API
+
+1. **Ve a**: https://stripe.com/mx
+2. Click en **"Crear cuenta"** o **"Sign up"**
+3. Completa el registro:
+   - Email: tu email
+   - Contraseña: segura
+   - País: Mexico 🇲🇽
+   - Tipo de cuenta: **Individual** (para donaciones)
+4. Verifica tu email
+5. Completa tu perfil de negocio:
+   - Nombre de la empresa: "Zákia Dogs&Cats"
+   - Sitio web: puedes poner `http://localhost:8000` por ahora
+   - Descripción: "Aplicación para donaciones a refugio de animales"
+
+#### Obtener las claves API:
+
+1. Una vez en el Dashboard: https://dashboard.stripe.com/
+2. Ve a **"Developers"** → **"API keys"**
+3. Copia las claves:
+   - **Publishable key** (pk_test_...): Para el frontend
+   - **Secret key** (sk_test_...): Para el backend (¡NUNCA compartir!)
+
+**⚠️ IMPORTANTE**: Usa las claves de **TEST** primero. Las de producción (pk_live_...) las usarás después.
+
 ### Paso 1: Agregar cuenta bancaria en Stripe Dashboard
 
 1. **Ve a**: https://dashboard.stripe.com/settings/payouts

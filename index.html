@@ -9,10 +9,12 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://js.stripe.com/v3/"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 <body>
   <main class="app">
     <header class="header">
+      <div id="activeCardInfo" class="active-card-info" hidden></div>
       <h1 class="title">Zákia Dogs&Cats</h1>
       <p class="subtitle">Desliza las imágenes y dona si te gusta.</p>
     </header>
@@ -122,6 +124,12 @@
           <p class="payment-label">Monto a pagar:</p>
           <p class="payment-amount__value"><span id="paymentAmount">0</span> USD</p>
         </div>
+
+        <div id="savedCardSummary" class="saved-card-summary" hidden>
+          <p>Usando tarjeta guardada: <span id="savedCardLabel">••••</span> <span id="savedCardExpiry"></span></p>
+          <button type="button" class="link-btn" id="changeSavedCardBtn">Cambiar tarjeta</button>
+        </div>
+
         <form id="paymentForm" class="payment-form">
           <div class="form-group">
             <label for="payerName">Nombre Completo</label>
@@ -131,7 +139,7 @@
             <label for="payerEmail">Correo Electrónico</label>
             <input type="email" id="payerEmail" name="payerEmail" placeholder="juan@example.com" required />
           </div>
-          <div class="form-group">
+          <div class="form-group" id="cardElementWrapper">
             <label>Datos de la Tarjeta</label>
             <div id="card-element" class="stripe-card-element"></div>
             <div id="card-errors" role="alert"></div>
@@ -140,6 +148,14 @@
           <p class="payment-notice">Los pagos están procesados de forma segura con Stripe</p>
         </form>
       </div>
+    </div>
+  </div>
+
+  <div class="success-modal" id="successModal" hidden>
+    <div class="success-modal__content">
+      <button class="icon-btn success-modal__close" id="closeSuccessModal" aria-label="Cerrar">✕</button>
+      <h2>¡Perrito Feliz! 🎉</h2>
+      <p>Tu donación ha sido procesada exitosamente.</p>
     </div>
   </div>
 

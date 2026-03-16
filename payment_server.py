@@ -13,6 +13,25 @@ stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 BANK_ACCOUNT_ID = os.getenv('STRIPE_BANK_ACCOUNT_ID')
 BANKING_CURRENCY = os.getenv('BANKING_CURRENCY', 'MXN')
 
+
+def _normalize_card_number(number):
+    return ''.join(ch for ch in str(number or '') if ch.isdigit())
+
+
+def _test_token_from_card_number(number):
+    """Map common Stripe test card numbers to reusable test tokens."""
+    normalized = _normalize_card_number(number)
+    token_map = {
+        '4242424242424242': 'tok_visa',
+        '4000056655665556': 'tok_visa_debit',
+        '5555555555554444': 'tok_mastercard',
+        '378282246310005': 'tok_amex',
+        '6011111111111117': 'tok_discover',
+        '3530111333300000': 'tok_jcb',
+        '30569309025904': 'tok_diners',
+    }
+    return token_map.get(normalized)
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'bank_configured': bool(BANK_ACCOUNT_ID)}), 200
@@ -51,12 +70,46 @@ def process_payment():
         data = request.get_json()
         amount = int(data.get('amount') * 100)  # Convert to cents
         currency = data.get('currency', 'usd')
+
+        token = data.get('token')
+        card_payload = data.get('card')
+
+        if not token and card_payload:
+            number = _normalize_card_number(card_payload.get('number'))
+
+            # In test mode, prefer known test tokens to avoid raw-card API restrictions.
+            if stripe.api_key and stripe.api_key.startswith('sk_test_'):
+                token = _test_token_from_card_number(number)
+
+            if not token:
+                try:
+                    exp_month = int(card_payload.get('exp_month'))
+                    exp_year = int(card_payload.get('exp_year'))
+                except (TypeError, ValueError):
+                    return jsonify({'error': 'La tarjeta guardada tiene fecha de vencimiento invalida'}), 400
+
+                try:
+                    token_obj = stripe.Token.create(
+                        card={
+                            'number': number,
+                            'exp_month': exp_month,
+                            'exp_year': exp_year,
+                            'cvc': card_payload.get('cvc'),
+                            'name': card_payload.get('name', '')
+                        }
+                    )
+                    token = token_obj.id
+                except stripe.error.StripeError as e:
+                    return jsonify({'error': 'No se pudo tokenizar la tarjeta guardada: ' + str(e)}), 400
+
+        if not token:
+            return jsonify({'error': 'No se recibio un token de pago valido'}), 400
         
         # Create charge
         charge = stripe.Charge.create(
             amount=amount,
             currency=currency,
-            source=data.get('token'),
+            source=token,
             description=data.get('description', 'PWA Donation'),
             metadata={
                 'type': data.get('type', 'donation'),
