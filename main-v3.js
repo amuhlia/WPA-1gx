@@ -36,6 +36,19 @@ const cardList = document.getElementById("cardList");
 const toast = document.getElementById("toast");
 let savedCards = JSON.parse(localStorage.getItem('cards')) || [];
 
+// Payment system
+const API_URL = 'http://localhost:5000';
+let stripe = null;
+let elements = null;
+let cardElement = null;
+let currentDonationAmount = 0;
+
+const paymentModal = document.getElementById("paymentModal");
+const closePaymentModal = document.getElementById("closePaymentModal");
+const paymentForm = document.getElementById("paymentForm");
+const paymentAmount = document.getElementById("paymentAmount");
+const submitPayment = document.getElementById("submitPayment");
+
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
@@ -145,7 +158,8 @@ donateOptions.forEach((button) => {
   button.addEventListener("click", () => {
     const value = button.dataset.value;
     hideDonateStrip();
-    showToast(`Gracias por tu donación de $${value}!`);
+    currentDonationAmount = parseFloat(value);
+    openPaymentModal(currentDonationAmount, `Donación de $${value}`);
   });
 });
 
@@ -209,6 +223,93 @@ cardForm.addEventListener("submit", (e) => {
   showToast('Tarjeta agregada exitosamente');
 });
 
+// Payment System Functions
+function initializeStripe(publicKey) {
+  if (!stripe) {
+    stripe = Stripe(publicKey);
+    elements = stripe.elements();
+    cardElement = elements.create('card');
+    cardElement.mount('#card-element');
+    
+    cardElement.addEventListener('change', (event) => {
+      const displayError = document.getElementById('card-errors');
+      if (event.error) {
+        displayError.textContent = event.error.message;
+      } else {
+        displayError.textContent = '';
+      }
+    });
+  }
+}
+
+function openPaymentModal(amount, description) {
+  paymentAmount.textContent = amount.toFixed(2);
+  paymentModal.setAttribute("aria-hidden", "false");
+  paymentForm.dataset.amount = amount;
+  paymentForm.dataset.description = description;
+}
+
+function closePaymentModalFn() {
+  paymentModal.setAttribute("aria-hidden", "true");
+  paymentForm.reset();
+}
+
+async function processPayment(e) {
+  e.preventDefault();
+  
+  const amount = parseFloat(paymentForm.dataset.amount);
+  const name = document.getElementById("payerName").value;
+  const email = document.getElementById("payerEmail").value;
+  
+  submitPayment.disabled = true;
+  submitPayment.textContent = "Procesando...";
+  
+  try {
+    // Get payment method from Stripe
+    const { paymentMethod, error } = await stripe.createPaymentMethod({
+      type: 'card',
+      card: cardElement,
+      billing_details: { name, email },
+    });
+    
+    if (error) {
+      document.getElementById('card-errors').textContent = error.message;
+      return;
+    }
+    
+    // Send payment to backend
+    const response = await fetch(`${API_URL}/process-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: amount,
+        currency: 'usd',
+        payment_method: paymentMethod.id,
+        description: paymentForm.dataset.description,
+        type: 'donation'
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success || data.chargeId) {
+      closePaymentModalFn();
+      showToast(`¡Pago procesado! ID: ${data.chargeId || 'OK'}`);
+    } else {
+      document.getElementById('card-errors').textContent = data.error || 'Error en el pago';
+    }
+  } catch (err) {
+    document.getElementById('card-errors').textContent = 'Error: ' + err.message;
+  } finally {
+    submitPayment.disabled = false;
+    submitPayment.textContent = "Pagar Ahora";
+  }
+}
+
+// Payment Modal Event Listeners
+closePaymentModal.addEventListener("click", closePaymentModalFn);
+paymentForm.addEventListener("submit", processPayment);
+
 window.addEventListener("load", () => {
   updateImage();
 
@@ -222,4 +323,20 @@ window.addEventListener("load", () => {
         console.warn('No se pudo registrar el service worker:', err);
       });
   }
+  
+  // Initialize Stripe with public key from backend
+  fetch(`${API_URL}/create-payment-intent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount: 0, currency: 'usd' })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.publicKey) {
+      initializeStripe(data.publicKey);
+    }
+  })
+  .catch(() => {
+    console.warn('Payment system not available. Make sure Flask server is running on port 5000');
+  });
 });
