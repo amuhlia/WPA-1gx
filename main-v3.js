@@ -294,7 +294,11 @@ async function processPayment(e) {
     
     if (data.success || data.chargeId) {
       closePaymentModalFn();
-      showToast(`¡Pago procesado! ID: ${data.chargeId || 'OK'}`);
+      let message = `¡Pago completado! Transacción: ${data.chargeId}`;
+      if (data.payoutStatus && data.payoutStatus !== 'no_bank_account') {
+        message += `\n💳 Transferencia a Bancoppel: ${data.payoutStatus}`;
+      }
+      showToast(message);
     } else {
       document.getElementById('card-errors').textContent = data.error || 'Error en el pago';
     }
