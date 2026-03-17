@@ -122,21 +122,27 @@ exports.handler = async (event, context) => {
       }
     });
 
-    let payoutStatus = 'no_bank_account';
+    let payoutStatus = 'automatic';
 
-    // Schedule automatic payout to bank account
-    if (BANK_ACCOUNT_ID && charge.status === 'succeeded') {
+    // Only attempt a manual payout if a valid ba_ bank account ID is configured.
+    // Without destination, Stripe uses its automatic payout schedule (default behavior).
+    const isValidBankId = BANK_ACCOUNT_ID && BANK_ACCOUNT_ID.startsWith('ba_');
+    if (isValidBankId && charge.status === 'succeeded') {
       try {
-        const payout = await stripe.payouts.create({
+        const payoutParams = {
           amount: charge.amount,
           currency: currency,
-          destination: BANK_ACCOUNT_ID,
           description: `Payout for ${data.description || 'Donation'}`,
           metadata: { charge_id: charge.id }
-        });
+        };
+        // Only set destination when we have a verified bank account ID
+        payoutParams.destination = BANK_ACCOUNT_ID;
+        const payout = await stripe.payouts.create(payoutParams);
         payoutStatus = payout.status;
       } catch (error) {
-        payoutStatus = `error: ${error.message}`;
+        // Payout failure does NOT reverse the charge; log and continue.
+        console.error('Payout error (charge succeeded):', error.message);
+        payoutStatus = `payout_error: ${error.message}`;
       }
     }
 
