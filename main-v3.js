@@ -59,6 +59,8 @@ let elements = null;
 let cardElement = null;
 let currentDonationAmount = 0;
 let pendingPaymentContext = null;
+let enableCardVerification = false;
+let pendingPaymentData = null;
 
 const successModal = document.getElementById("successModal");
 const closeSuccessModal = document.getElementById("closeSuccessModal");
@@ -68,6 +70,10 @@ const paymentForm = document.getElementById("paymentForm");
 const paymentAmount = document.getElementById("paymentAmount");
 const submitPayment = document.getElementById("submitPayment");
 const savedCardSummary = document.getElementById("savedCardSummary");
+const verificationModal = document.getElementById("verificationModal");
+const closeVerificationModal = document.getElementById("closeVerificationModal");
+const confirmVerificationBtn = document.getElementById("confirmVerificationBtn");
+const cancelVerificationBtn = document.getElementById("cancelVerificationBtn");
 const savedCardLabel = document.getElementById("savedCardLabel");
 const savedCardExpiry = document.getElementById("savedCardExpiry");
 const changeSavedCardBtn = document.getElementById("changeSavedCardBtn");
@@ -387,6 +393,35 @@ function closePaymentModalFn() {
   paymentForm.reset();
 }
 
+function showVerificationModal(paymentData) {
+  pendingPaymentData = paymentData;
+  
+  // Fill verification modal with data
+  document.getElementById('verifyName').textContent = paymentData.name || '-';
+  document.getElementById('verifyEmail').textContent = paymentData.email || '-';
+  document.getElementById('verifyAmount').textContent = `$${paymentData.amount.toFixed(2)} USD`;
+  document.getElementById('verifyDescription').textContent = paymentData.description || '-';
+
+  // Show card section only if using a saved card
+  const cardSection = document.getElementById('verifyCardSection');
+  if (paymentData.card) {
+    cardSection.style.display = 'block';
+    document.getElementById('verifyCardName').textContent = paymentData.card.name || '-';
+    document.getElementById('verifyCardNumber').textContent = `•••• •••• •••• ${paymentData.card.number.slice(-4)}`;
+    document.getElementById('verifyCardExpiry').textContent = paymentData.card.expiry || '-';
+  } else {
+    cardSection.style.display = 'none';
+  }
+
+  verificationModal.setAttribute("aria-hidden", "false");
+}
+
+function hideVerificationModal() {
+  blurFocusedElementWithin(verificationModal);
+  verificationModal.setAttribute("aria-hidden", "true");
+  pendingPaymentData = null;
+}
+
 function clearSuccessModalTimers() {
   if (successModalAutoCloseTimeout) {
     clearTimeout(successModalAutoCloseTimeout);
@@ -439,9 +474,6 @@ async function processPayment(e) {
 
   const cardErrorsElement = document.getElementById('card-errors');
   cardErrorsElement.textContent = '';
-  
-  submitPayment.disabled = true;
-  submitPayment.textContent = "Procesando...";
   
   try {
     if (!stripe) {
@@ -496,6 +528,44 @@ async function processPayment(e) {
       paymentPayload.token = tokenResult.token.id;
     }
     
+    // If card verification is enabled, show verification modal instead of processing immediately
+    if (enableCardVerification) {
+      const verificationData = {
+        name: name,
+        email: email,
+        amount: amount,
+        description: paymentForm.dataset.description,
+        card: activeCard ? {
+          name: activeCard.name,
+          number: activeCard.number,
+          expiry: activeCard.expiry
+        } : null,
+        payload: paymentPayload
+      };
+      
+      showVerificationModal(verificationData);
+      return;
+    }
+
+    // Otherwise, process payment directly
+    await executePayment(paymentPayload);
+    
+  } catch (err) {
+    console.log('Payment error:', err);
+    const cardErrorsElement = document.getElementById('card-errors');
+    cardErrorsElement.textContent = 'Error: ' + err.message;
+  } finally {
+    submitPayment.disabled = false;
+    submitPayment.textContent = "Pagar Ahora";
+  }
+}
+
+async function executePayment(paymentPayload) {
+  const cardErrorsElement = document.getElementById('card-errors');
+  submitPayment.disabled = true;
+  submitPayment.textContent = "Procesando...";
+  
+  try {
     // Send payment to backend
     const response = await fetch(`${API_URL}/process-payment`, {
       method: 'POST',
@@ -508,6 +578,7 @@ async function processPayment(e) {
     
     if (data.success || data.chargeId) {
       closePaymentModalFn();
+      hideVerificationModal();
       
       // Show success modal with confetti
       showSuccessModal();
@@ -543,6 +614,21 @@ changeSavedCardBtn.addEventListener("click", () => {
   showWalletStrip();
 });
 paymentForm.addEventListener("submit", processPayment);
+
+// Verification Modal Event Listeners
+closeVerificationModal.addEventListener("click", hideVerificationModal);
+
+cancelVerificationBtn.addEventListener("click", () => {
+  hideVerificationModal();
+  // Modal de pago sigue abierto
+});
+
+confirmVerificationBtn.addEventListener("click", async () => {
+  if (pendingPaymentData && pendingPaymentData.payload) {
+    hideVerificationModal();
+    await executePayment(pendingPaymentData.payload);
+  }
+});
 
 // Success Modal Event Listener
 closeSuccessModal.addEventListener("click", () => {
@@ -591,6 +677,10 @@ window.addEventListener("load", () => {
       initializeStripe(data.publicKey);
     } else {
       console.error('No publicKey received');
+    }
+    if (data.enableCardVerification !== undefined) {
+      enableCardVerification = data.enableCardVerification;
+      console.log('Card verification enabled:', enableCardVerification);
     }
   })
   .catch(err => {

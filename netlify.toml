@@ -9,6 +9,7 @@
 # STRIPE_PUBLIC_KEY
 # STRIPE_BANK_ACCOUNT_ID
 # BANKING_CURRENCY (optional, default: MXN)
+# ENABLE_CARD_VERIFICATION (optional, default: false - set to "true" to enable card verification modal)
 
 # Runtime settings
 [functions]

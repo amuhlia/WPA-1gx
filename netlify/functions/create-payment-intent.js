@@ -47,7 +47,8 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         clientSecret: intent.client_secret,
         publicKey: process.env.STRIPE_PUBLIC_KEY,
-        bankingCurrency: BANKING_CURRENCY
+        bankingCurrency: BANKING_CURRENCY,
+        enableCardVerification: process.env.ENABLE_CARD_VERIFICATION === 'true'
       })
     };
   } catch (error) {

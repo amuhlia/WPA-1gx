@@ -151,6 +151,62 @@
     </div>
   </div>
 
+  <div class="verification-modal" id="verificationModal" aria-hidden="true">
+    <div class="verification-modal__overlay"></div>
+    <div class="verification-modal__content">
+      <div class="verification-modal__header">
+        <h2>Verificar Datos</h2>
+        <button class="icon-btn" id="closeVerificationModal" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="verification-modal__body">
+        <div class="verification-section">
+          <h3>Datos del Pagador</h3>
+          <div class="verification-item">
+            <span class="verification-label">Nombre:</span>
+            <span class="verification-value" id="verifyName">-</span>
+          </div>
+          <div class="verification-item">
+            <span class="verification-label">Email:</span>
+            <span class="verification-value" id="verifyEmail">-</span>
+          </div>
+        </div>
+
+        <div class="verification-section">
+          <h3>Datos del Pago</h3>
+          <div class="verification-item">
+            <span class="verification-label">Monto:</span>
+            <span class="verification-value" id="verifyAmount">-</span>
+          </div>
+          <div class="verification-item">
+            <span class="verification-label">Descripción:</span>
+            <span class="verification-value" id="verifyDescription">-</span>
+          </div>
+        </div>
+
+        <div class="verification-section" id="verifyCardSection">
+          <h3>Datos de la Tarjeta</h3>
+          <div class="verification-item">
+            <span class="verification-label">Titular:</span>
+            <span class="verification-value" id="verifyCardName">-</span>
+          </div>
+          <div class="verification-item">
+            <span class="verification-label">Número:</span>
+            <span class="verification-value" id="verifyCardNumber">-</span>
+          </div>
+          <div class="verification-item">
+            <span class="verification-label">Vencimiento:</span>
+            <span class="verification-value" id="verifyCardExpiry">-</span>
+          </div>
+        </div>
+
+        <div class="verification-actions">
+          <button type="button" class="btn-secondary" id="cancelVerificationBtn">Cancelar</button>
+          <button type="button" class="btn-primary" id="confirmVerificationBtn">Confirmar Pago</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="success-modal" id="successModal" hidden>
     <div class="success-modal__content">
       <button class="icon-btn success-modal__close" id="closeSuccessModal" aria-label="Cerrar">✕</button>
