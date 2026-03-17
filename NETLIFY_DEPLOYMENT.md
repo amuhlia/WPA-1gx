@@ -84,10 +84,7 @@ Las funciones estarán disponibles en:
 Si necesitas probar con variables de entorno locales:
 
 ```
-STRIPE_PUBLIC_KEY=pk_test_...
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_BANK_ACCOUNT_ID=
-BANKING_CURRENCY=MXN
+
 ```
 
 ⚠️ **NO** hagas commit del archivo `.env`. Ya está en `.gitignore`.
