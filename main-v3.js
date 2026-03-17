@@ -49,6 +49,7 @@ const setActiveCard = (index) => {
   localStorage.setItem('activeCardIndex', index);
   renderCardList();
   updateActiveCardDisplay();
+  updateDonateButtonState();
 };
 
 // Payment system
@@ -109,6 +110,19 @@ function hideDonateStrip() {
   donateStrip.setAttribute("aria-hidden", "true");
 }
 
+function updateDonateButtonState() {
+  const hasSavedCards = savedCards.length > 0;
+  donateBtn.disabled = !hasSavedCards;
+  donateBtn.setAttribute('aria-disabled', String(!hasSavedCards));
+
+  if (!hasSavedCards) {
+    donateBtn.title = 'Agrega una tarjeta en Billetera para donar';
+    hideDonateStrip();
+  } else {
+    donateBtn.removeAttribute('title');
+  }
+}
+
 function showWalletStrip() {
   walletStrip.setAttribute("aria-hidden", "false");
 }
@@ -139,6 +153,8 @@ function hideCardFormModal() {
 }
 
 function renderCardList() {
+  updateDonateButtonState();
+
   if (savedCards.length === 0) {
     cardList.innerHTML = '<p class="card-list__empty">No tienes tarjetas registradas</p>';
     return;
@@ -218,6 +234,10 @@ nextBtn.addEventListener("click", () => {  console.log('Next button clicked');  
 });
 
 donateBtn.addEventListener("click", () => {
+  if (donateBtn.disabled) {
+    return;
+  }
+
   showDonateStrip();
 });
 
@@ -545,6 +565,7 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("load", () => {
   updateImage();
   updateActiveCardDisplay();
+  updateDonateButtonState();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker

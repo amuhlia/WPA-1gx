@@ -124,6 +124,13 @@ body {
   box-shadow: 0 4px 8px rgba(74, 118, 255, 0.22);
 }
 
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+  transform: none;
+}
+
 .donate-strip {
   position: fixed;
   inset: auto 0 0 0;
@@ -680,7 +687,7 @@ body {
 
 .payment-notice {
   text-align: center;
-  margins: 0;
+  margin: 0;
   font-size: 0.8rem;
   opacity: 0.7;
   margin-top: 1rem;
