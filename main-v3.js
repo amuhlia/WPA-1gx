@@ -326,16 +326,12 @@ cardForm.addEventListener("submit", (e) => {
 
 // Payment System Functions
 function initializeStripe(publicKey) {
-  console.log('initializeStripe called with publicKey:', publicKey);
+  console.log('✅ initializeStripe con publicKey:', publicKey.slice(0, 12) + '...');
   if (!stripe) {
     stripe = Stripe(publicKey);
-    console.log('Stripe instance created:', stripe);
     elements = stripe.elements();
-    console.log('Elements created:', elements);
     cardElement = elements.create('card');
-    console.log('Card element created:', cardElement);
     cardElement.mount('#card-element');
-    console.log('Card element mounted');
     
     cardElement.addEventListener('change', (event) => {
       const displayError = document.getElementById('card-errors');
@@ -345,7 +341,30 @@ function initializeStripe(publicKey) {
         displayError.textContent = '';
       }
     });
+
+    // Enable submit button now that stripe is ready
+    submitPayment.disabled = false;
+    const errEl = document.getElementById('card-errors');
+    if (errEl && errEl.dataset.stripeError) {
+      errEl.textContent = '';
+      delete errEl.dataset.stripeError;
+    }
   }
+}
+
+function setStripeUnavailable(message) {
+  stripe = null;
+  // Show error inside the payment modal so the user lo vea
+  const errEl = document.getElementById('card-errors');
+  if (errEl) {
+    errEl.textContent = message;
+    errEl.dataset.stripeError = '1';
+  }
+  submitPayment.disabled = true;
+  submitPayment.title = message;
+  donateBtn.disabled = true;
+  donateBtn.title = message;
+  console.error('🚫 Stripe no disponible:', message);
 }
 
 function updatePaymentModalCardUI() {
@@ -455,10 +474,10 @@ function showSuccessModal() {
 
 async function processPayment(e) {
   e.preventDefault();
-  console.log('processPayment called');
+  console.log('🔵 processPayment called');
   
   if (submitPayment.disabled) {
-    console.log('Payment already in progress');
+    console.log('⏳ Payment already in progress');
     return;
   }
   
@@ -466,7 +485,7 @@ async function processPayment(e) {
   const name = document.getElementById("payerName").value;
   const email = document.getElementById("payerEmail").value;
   
-  console.log('Amount:', amount, 'Name:', name, 'Email:', email);
+  console.log('📋 Form data:', { amount, name, email });
   
   // Save email for next time
   lastEmail = email;
@@ -477,13 +496,17 @@ async function processPayment(e) {
   
   try {
     if (!stripe) {
-      cardErrorsElement.textContent = 'No se pudo inicializar el formulario de tarjeta.';
+      console.error('❌ stripe no inicializado');
+      cardErrorsElement.textContent = 'El sistema de pagos no está disponible. Revisa la configuración de las claves de Stripe en Netlify.';
       return;
     }
 
     const activeCard = getActiveCard();
+    console.log('💳 activeCard:', activeCard ? `****${activeCard.number.slice(-4)}` : 'ninguna (usando Stripe Element)');
+    console.log('🔧 stripe inicializado:', !!stripe, '| cardElement:', !!cardElement);
 
     if (!activeCard && !cardElement) {
+      console.error('❌ Sin tarjeta activa ni cardElement');
       cardErrorsElement.textContent = 'No se pudo inicializar el formulario de tarjeta.';
       return;
     }
@@ -528,6 +551,9 @@ async function processPayment(e) {
       paymentPayload.token = tokenResult.token.id;
     }
     
+    console.log('✅ paymentPayload listo:', { ...paymentPayload, card: paymentPayload.card ? '(card data present)' : undefined, token: paymentPayload.token || undefined });
+    console.log('🔒 enableCardVerification:', enableCardVerification);
+
     // If card verification is enabled, show verification modal instead of processing immediately
     if (enableCardVerification) {
       const verificationData = {
@@ -551,7 +577,7 @@ async function processPayment(e) {
     await executePayment(paymentPayload);
     
   } catch (err) {
-    console.log('Payment error:', err);
+    console.error('❌ Error en processPayment:', err);
     const cardErrorsElement = document.getElementById('card-errors');
     cardErrorsElement.textContent = 'Error: ' + err.message;
   } finally {
@@ -567,6 +593,17 @@ async function executePayment(paymentPayload) {
   
   try {
     // Send payment to backend
+    console.log('📤 Enviando al servidor de pagos:', {
+      url: `${API_URL}/process-payment`,
+      payload: {
+        ...paymentPayload,
+        card: paymentPayload.card ? {
+          ...paymentPayload.card,
+          number: '****' + String(paymentPayload.card.number || '').slice(-4),
+          cvc: '***'
+        } : undefined
+      }
+    });
     const response = await fetch(`${API_URL}/process-payment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -625,8 +662,9 @@ cancelVerificationBtn.addEventListener("click", () => {
 
 confirmVerificationBtn.addEventListener("click", async () => {
   if (pendingPaymentData && pendingPaymentData.payload) {
+    const payload = pendingPaymentData.payload; // save before hideVerificationModal nullifies it
     hideVerificationModal();
-    await executePayment(pendingPaymentData.payload);
+    await executePayment(payload);
   }
 });
 
@@ -664,33 +702,31 @@ window.addEventListener("load", () => {
       });
   }
   
-  // Initialize Stripe with public key from backend
-  fetch(`${API_URL}/create-payment-intent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ amount: 1, currency: 'usd' })  // Use small amount for init
-  })
+  // Load config and initialize Stripe
+  fetch(`${API_URL}/config`)
   .then(r => r.json())
   .then(data => {
-    console.log('Stripe init data:', data);
-    
+    console.log('⚙️ Config recibida:', { publicKey: data.publicKey ? '✅' : '❌', enableCardVerification: data.enableCardVerification });
+
     if (data.error) {
-      console.error('❌ Stripe initialization error:', data.error);
-      console.error('Details:', data.details || 'No additional details');
+      console.error('❌ Error de configuración:', data.error);
+      setStripeUnavailable('Sistema de pagos no disponible: ' + data.error);
       return;
     }
-    
+
     if (data.publicKey) {
       initializeStripe(data.publicKey);
     } else {
-      console.error('No publicKey received');
+      console.error('❌ No se recibió publicKey');
+      setStripeUnavailable('Sistema de pagos no disponible: clave pública no encontrada.');
     }
+
     if (data.enableCardVerification !== undefined) {
       enableCardVerification = data.enableCardVerification;
-      console.log('Card verification enabled:', enableCardVerification);
     }
   })
   .catch(err => {
-    console.error('Error initializing Stripe:', err);
+    console.error('❌ Error cargando configuración:', err);
+    setStripeUnavailable('No se pudo conectar con el servidor de pagos.');
   });
 });

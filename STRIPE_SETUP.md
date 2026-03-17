@@ -70,24 +70,21 @@ Donde:
 - `ba_...` es el **Bank Account ID** que obtuviste arriba
 - `MXN` es la moneda mexicana
 
-### Paso 5: Ejecutar el servidor
+### Paso 5: Ejecutar localmente
 
-**Terminal 1** (Backend con pagos):
 ```bash
-cd /home/virusventor/WPA-1gx
-/home/virusventor/WPA-1gx/.venv/bin/python payment_server.py
+npm run dev
+# o
+netlify dev
 ```
 
-**Terminal 2** (Frontend):
-```bash
-python3 -m http.server 8000
-```
+Netlify Dev levanta el frontend **y** las Functions serverless juntos en un solo comando.
 
 ---
 
 ## 🧪 Prueba con tarjeta de prueba
 
-1. Abre: http://localhost:8000
+1. Abre: http://localhost:8888
 2. Click en **"Donar"** → **"$50"**
 3. Llena el formulario
 4. Usa tarjeta: **4242 4242 4242 4242**

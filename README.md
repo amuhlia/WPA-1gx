@@ -28,17 +28,15 @@ Una Progressive Web App completa con carrusel, donaciones y sistema de pagos con
 
 ```
 
-### 3. Ejecutar
+### 3. Ejecutar localmente
 
 ```bash
-# Terminal 1: Backend
-/home/virusventor/WPA-1gx/.venv/bin/python payment_server.py
-
-# Terminal 2: Frontend
-python3 -m http.server 8000
+npm run dev
+# o
+netlify dev
 ```
 
-Abre: **http://localhost:8000**
+Abre: **http://localhost:8888** (Netlify Dev incluye las Functions automáticamente)
 
 ---
 
@@ -67,7 +65,7 @@ WPA-1gx/
 ├── index.html                 # UI principal
 ├── style.css                  # Estilos responsivos
 ├── main-v3.js                 # JavaScript cliente
-├── payment_server.py          # Backend Flask + Stripe
+├── netlify/functions/           # Backend serverless (Netlify Functions)
 ├── service-worker.js          # PWA offline
 ├── STRIPE_SETUP.md            # Guía de configuración
 ├── images/                    # Fotos carrusel
@@ -84,9 +82,9 @@ WPA-1gx/
 
 ## 🚀 Pasar a Producción
 
-1. Cambiar a `pk_live_...` y `sk_live_...` en `.env`
-2. Actualizar servidor con HTTPS
-3. Usar dominio real en CORS
+1. Cambiar a `pk_live_...` y `sk_live_...` en variables de Netlify
+2. Deploy automático en Netlify
+3. CORS ya configurado en Netlify Functions
 4. Implementar logging y webhooks de Stripe
 
 ## 📝 Más Información
@@ -94,6 +92,4 @@ WPA-1gx/
 - **Stripe Docs**: https://stripe.com/docs
 - **Bancoppel**: Verifica estado en https://www.bancoppel.com.mx
 - **Test Cards**: https://stripe.com/docs/testing
-
-Luego acceder a: http://localhost:8000
 

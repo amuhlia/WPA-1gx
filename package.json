@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "netlify dev",
     "build": "echo 'Static site - no build needed'",
-    "start": "python3 -m http.server 8000"
+    "start": "netlify dev"
   },
   "dependencies": {
     "stripe": "^12.0.0",

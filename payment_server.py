@@ -1,3 +1,8 @@
+# DEPRECATED: This Flask server is no longer used.
+# The app runs 100% serverless via Netlify Functions in netlify/functions/
+# See: netlify/functions/create-payment-intent.js
+#      netlify/functions/process-payment.js
+
 import stripe
 import os
 from flask import Flask, request, jsonify
