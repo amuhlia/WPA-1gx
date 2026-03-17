@@ -175,11 +175,11 @@ def payout_status(charge_id):
         return jsonify({'error': str(e)}), 400
 
 if __name__ == '__main__':
-    
-    port = 5000
+    port = int(os.getenv('FLASK_PORT'))
     if not BANK_ACCOUNT_ID:
         print("⚠️  WARNING: STRIPE_BANK_ACCOUNT_ID not configured")
         print("   Set this in .env for automatic payouts to Bancoppel")
     else:
         print(f"✅ Bank account configured: {BANK_ACCOUNT_ID}")
     app.run(debug=False, host='0.0.0.0', port=port)
+
