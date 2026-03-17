@@ -11,8 +11,7 @@ Este proyecto ha sido configurado para funcionar como una **PWA estática con Ne
    - `process-payment.js` - Procesar pago y transferencia bancaria
    - `payout-status.js` - Consultar estado du payout
 3. ✅ **Configurado** `netlify.toml` para servir funciones
-
-4. ✅ **Actualizado** `main-v3.js` para usar `/.netlify/functions` en lugar de `http://localhost:5000`
+4. ✅ **Actualizado** `main-v3.js` para usar `/.netlify/functions` en lugar de `http://localhost:port`
 
 ## Pasos para desplegar
 
