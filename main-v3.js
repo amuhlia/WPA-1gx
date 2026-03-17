@@ -53,7 +53,7 @@ const setActiveCard = (index) => {
 };
 
 // Payment system
-const API_URL = 'http://localhost:5000';
+const API_URL = '/.netlify/functions';
 let stripe = null;
 let elements = null;
 let cardElement = null;

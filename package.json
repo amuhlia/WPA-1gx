@@ -1,0 +1,18 @@
+{
+  "name": "wpa-donation-app",
+  "version": "1.0.0",
+  "description": "PWA donation app with Stripe integration",
+  "main": "index.js",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Static site - no build needed'",
+    "start": "python3 -m http.server 8000"
+  },
+  "dependencies": {
+    "stripe": "^12.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

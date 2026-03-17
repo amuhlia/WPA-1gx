@@ -1,0 +1,15 @@
+# Netlify configuration
+[build]
+  command = "echo 'No build required for static site'"
+  functions = "netlify/functions"
+  publish = "."
+
+# Build environment variables (configure these in Netlify dashboard)
+# STRIPE_SECRET_KEY
+# STRIPE_PUBLIC_KEY
+# STRIPE_BANK_ACCOUNT_ID
+# BANKING_CURRENCY (optional, default: MXN)
+
+# Runtime settings
+[functions]
+  node_bundler = "esbuild"
