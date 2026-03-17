@@ -25,11 +25,7 @@ Una Progressive Web App completa con carrusel, donaciones y sistema de pagos con
 ### 2. Crear `.env`
 
 ```bash
-STRIPE_PUBLIC_KEY=pk_test_XXXX
-STRIPE_SECRET_KEY=sk_test_XXXX
-STRIPE_BANK_ACCOUNT_ID=ba_XXXX
-BANKING_CURRENCY=MXN
-FLASK_PORT=5000
+
 ```
 
 ### 3. Ejecutar

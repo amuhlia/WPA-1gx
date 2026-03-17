@@ -54,10 +54,7 @@ En tu sitio de Netlify:
 2. Agrega las siguientes variables:
 
 ```
-STRIPE_PUBLIC_KEY=pk_test_... (o pk_live_...)
-STRIPE_SECRET_KEY=sk_test_... (o sk_live_...)
-STRIPE_BANK_ACCOUNT_ID=acct_... (obtenido del dashboard de Stripe)
-BANKING_CURRENCY=MXN (o la que uses)
+
 ```
 
 **⚠️ IMPORTANTE:** Mantén las claves secretas seguras. Netlify permite encriptar estas variables.
