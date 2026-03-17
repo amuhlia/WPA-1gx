@@ -175,6 +175,7 @@ def payout_status(charge_id):
         return jsonify({'error': str(e)}), 400
 
 if __name__ == '__main__':
+    
     port = 5000
     if not BANK_ACCOUNT_ID:
         print("⚠️  WARNING: STRIPE_BANK_ACCOUNT_ID not configured")
