@@ -673,6 +673,13 @@ window.addEventListener("load", () => {
   .then(r => r.json())
   .then(data => {
     console.log('Stripe init data:', data);
+    
+    if (data.error) {
+      console.error('❌ Stripe initialization error:', data.error);
+      console.error('Details:', data.details || 'No additional details');
+      return;
+    }
+    
     if (data.publicKey) {
       initializeStripe(data.publicKey);
     } else {

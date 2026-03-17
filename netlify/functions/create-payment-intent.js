@@ -1,12 +1,21 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const BANKING_CURRENCY = process.env.BANKING_CURRENCY || 'MXN';
+const ENABLE_CARD_VERIFICATION = process.env.ENABLE_CARD_VERIFICATION === 'true';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Content-Type': 'application/json'
 };
+
+// Validate environment variables at startup
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.error('❌ STRIPE_SECRET_KEY not configured in Netlify environment variables');
+}
+if (!process.env.STRIPE_PUBLIC_KEY) {
+  console.error('❌ STRIPE_PUBLIC_KEY not configured in Netlify environment variables');
+}
 
 exports.handler = async (event, context) => {
   // Handle CORS preflight
@@ -52,7 +61,21 @@ exports.handler = async (event, context) => {
       })
     };
   } catch (error) {
-    console.error('Stripe error:', error);
+    console.error('Stripe initialization error:', error.message);
+    
+    // Check if it's an API key error
+    if (error.message && error.message.includes('Invalid API Key')) {
+      console.error('❌ STRIPE_SECRET_KEY is invalid. Check Netlify environment variables.');
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ 
+          error: 'Invalid Stripe API Key - please check Netlify environment variables',
+          details: 'STRIPE_SECRET_KEY appears to be invalid or misconfigured'
+        })
+      };
+    }
+    
     return {
       statusCode: 400,
       headers: corsHeaders,
