@@ -311,6 +311,14 @@ body {
   font-size: 1.25rem;
 }
 
+.card-modal__disclaimer {
+  margin: 0 0 0.5rem;
+  font-size: clamp(0.65rem, 2.2vw, 0.8rem);
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.4;
+  text-align: center;
+}
+
 .card-list {
   margin: 1.5rem 0;
   max-height: 300px;
