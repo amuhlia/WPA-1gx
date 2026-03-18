@@ -1,18 +1,6 @@
 console.log('Loading main.js v3');
 
-const images = [
-  "images/photo_2026-03-15_19-45-32.jpg",
-  "images/photo_2026-03-15_19-45-36.jpg",
-  "images/photo_2026-03-15_19-45-41.jpg",
-  "images/photo_2026-03-15_19-45-46.jpg",
-  "images/photo_2026-03-15_19-45-49.jpg",
-  "images/photo_2026-03-15_19-45-52.jpg",
-  "images/photo_2026-03-15_19-45-55.jpg",
-  "images/photo_2026-03-15_19-45-57.jpg",
-  "images/photo_2026-03-15_19-46-00.jpg",
-  "images/photo_2026-03-15_19-46-03.jpg",
-  "images/photo_2026-03-15_19-46-05.jpg",
-];
+let images = [];
 let currentIndex = 0;
 
 const carouselImage = document.getElementById("carouselImage");
@@ -61,9 +49,16 @@ let currentDonationAmount = 0;
 let pendingPaymentContext = null;
 let enableCardVerification = false;
 let pendingPaymentData = null;
+let bankingCurrency = 'usd';
 
 const successModal = document.getElementById("successModal");
 const closeSuccessModal = document.getElementById("closeSuccessModal");
+const paymentErrorModal = document.getElementById("paymentErrorModal");
+const closePaymentErrorModal = document.getElementById("closePaymentErrorModal");
+const dismissPaymentErrorModal = document.getElementById("dismissPaymentErrorModal");
+const watermarkTrigger = document.getElementById("watermarkTrigger");
+const watermarkInfoModal = document.getElementById("watermarkInfoModal");
+const closeWatermarkInfoModal = document.getElementById("closeWatermarkInfoModal");
 const paymentModal = document.getElementById("paymentModal");
 const closePaymentModal = document.getElementById("closePaymentModal");
 const paymentForm = document.getElementById("paymentForm");
@@ -78,6 +73,7 @@ const savedCardLabel = document.getElementById("savedCardLabel");
 const savedCardExpiry = document.getElementById("savedCardExpiry");
 const changeSavedCardBtn = document.getElementById("changeSavedCardBtn");
 const cardElementWrapper = document.getElementById("cardElementWrapper");
+const verifyCardCvvInput = document.getElementById("verifyCardCvv");
 
 let successModalFadeTimeout = null;
 let successModalAutoCloseTimeout = null;
@@ -94,10 +90,37 @@ function updateActiveCardDisplay() {
 }
 
 function updateImage() {
+  if (!images.length) {
+    return;
+  }
+
   const src = images[currentIndex];
   console.log('Updating image to:', src, 'index:', currentIndex);
   carouselImage.src = src;
   carouselImage.alt = `Imagen ${currentIndex + 1} del carrusel`;
+}
+
+async function loadCarouselImages() {
+  try {
+    const response = await fetch(`${API_URL}/list-images`);
+    const data = await response.json();
+
+    if (Array.isArray(data.images) && data.images.length > 0) {
+      images = data.images;
+      currentIndex = 0;
+      updateImage();
+      console.log('Carousel images loaded from /images:', images.length);
+      return;
+    }
+  } catch (error) {
+    console.warn('Could not load image list from /images:', error.message);
+  }
+
+  // Fallback to current image already present in the DOM
+  const fallbackSrc = carouselImage.getAttribute('src');
+  images = fallbackSrc ? [fallbackSrc] : [];
+  currentIndex = 0;
+  updateImage();
 }
 
 function blurFocusedElementWithin(container) {
@@ -231,11 +254,11 @@ function formatExpiry(value) {
   return value;
 }
 
-prevBtn.addEventListener("click", () => {  console.log('Prev button clicked');  currentIndex = (currentIndex - 1 + images.length) % images.length;
+prevBtn.addEventListener("click", () => {  if (!images.length) return; console.log('Prev button clicked');  currentIndex = (currentIndex - 1 + images.length) % images.length;
   updateImage();
 });
 
-nextBtn.addEventListener("click", () => {  console.log('Next button clicked');  currentIndex = (currentIndex + 1) % images.length;
+nextBtn.addEventListener("click", () => {  if (!images.length) return; console.log('Next button clicked');  currentIndex = (currentIndex + 1) % images.length;
   updateImage();
 });
 
@@ -388,6 +411,7 @@ function updatePaymentModalCardUI() {
 }
 
 function openPaymentModal(amount, description) {
+  hidePaymentConfirmationError();
   paymentAmount.textContent = amount.toFixed(2);
   paymentModal.setAttribute("aria-hidden", "false");
   paymentForm.dataset.amount = amount;
@@ -407,6 +431,7 @@ function openPaymentModal(amount, description) {
 }
 
 function closePaymentModalFn() {
+  hidePaymentConfirmationError();
   blurFocusedElementWithin(paymentModal);
   paymentModal.setAttribute("aria-hidden", "true");
   paymentForm.reset();
@@ -418,7 +443,7 @@ function showVerificationModal(paymentData) {
   // Fill verification modal with data
   document.getElementById('verifyName').textContent = paymentData.name || '-';
   document.getElementById('verifyEmail').textContent = paymentData.email || '-';
-  document.getElementById('verifyAmount').textContent = `$${paymentData.amount.toFixed(2)} USD`;
+  document.getElementById('verifyAmount').textContent = `$${paymentData.amount.toFixed(2)} ${bankingCurrency.toUpperCase()}`;
   document.getElementById('verifyDescription').textContent = paymentData.description || '-';
 
   // Show card section only if using a saved card
@@ -428,17 +453,87 @@ function showVerificationModal(paymentData) {
     document.getElementById('verifyCardName').textContent = paymentData.card.name || '-';
     document.getElementById('verifyCardNumber').textContent = `•••• •••• •••• ${paymentData.card.number.slice(-4)}`;
     document.getElementById('verifyCardExpiry').textContent = paymentData.card.expiry || '-';
+    if (verifyCardCvvInput) {
+      verifyCardCvvInput.value = paymentData.card.cvc || '';
+      verifyCardCvvInput.setCustomValidity('');
+      verifyCardCvvInput.disabled = false;
+    }
   } else {
     cardSection.style.display = 'none';
+    if (verifyCardCvvInput) {
+      verifyCardCvvInput.value = '';
+      verifyCardCvvInput.setCustomValidity('');
+      verifyCardCvvInput.disabled = true;
+    }
   }
 
   verificationModal.setAttribute("aria-hidden", "false");
 }
 
+function persistVerificationCvv() {
+  if (!pendingPaymentData || !pendingPaymentData.payload || !pendingPaymentData.payload.card || !verifyCardCvvInput) {
+    return true;
+  }
+
+  const sanitizedCvv = verifyCardCvvInput.value.replace(/\D/g, '').slice(0, 4);
+  verifyCardCvvInput.value = sanitizedCvv;
+
+  if (sanitizedCvv.length < 3) {
+    verifyCardCvvInput.setCustomValidity('El CVV debe tener al menos 3 digitos.');
+    verifyCardCvvInput.reportValidity();
+    verifyCardCvvInput.focus();
+    return false;
+  }
+
+  verifyCardCvvInput.setCustomValidity('');
+
+  pendingPaymentData.payload.card.cvc = sanitizedCvv;
+
+  const cardIndex = pendingPaymentData.cardIndex;
+  if (Number.isInteger(cardIndex) && cardIndex >= 0 && savedCards[cardIndex]) {
+    savedCards[cardIndex].cvc = sanitizedCvv;
+    localStorage.setItem('cards', JSON.stringify(savedCards));
+  }
+
+  return true;
+}
+
 function hideVerificationModal() {
   blurFocusedElementWithin(verificationModal);
   verificationModal.setAttribute("aria-hidden", "true");
+  if (verifyCardCvvInput) {
+    verifyCardCvvInput.value = '';
+  }
   pendingPaymentData = null;
+}
+
+function hidePaymentConfirmationError() {
+  if (paymentErrorModal) {
+    paymentErrorModal.hidden = true;
+  }
+}
+
+function showPaymentConfirmationError() {
+  const errorTextElement = document.getElementById('paymentErrorText');
+  if (errorTextElement) {
+    errorTextElement.textContent = 'Verifique sus datos de la targeta.';
+  }
+
+  if (paymentErrorModal) {
+    paymentErrorModal.hidden = false;
+  }
+}
+
+function hideWatermarkInfoModal() {
+  if (watermarkInfoModal) {
+    watermarkInfoModal.hidden = true;
+  }
+}
+
+function showWatermarkInfoModal() {
+  if (watermarkInfoModal) {
+    watermarkInfoModal.hidden = false;
+  }
 }
 
 function clearSuccessModalTimers() {
@@ -493,6 +588,7 @@ async function processPayment(e) {
 
   const cardErrorsElement = document.getElementById('card-errors');
   cardErrorsElement.textContent = '';
+  hidePaymentConfirmationError();
   
   try {
     if (!stripe) {
@@ -511,10 +607,16 @@ async function processPayment(e) {
       return;
     }
 
+    const currentImagePath = images[currentIndex] || carouselImage.getAttribute('src') || '';
+    const currentImageName = String(currentImagePath).split('/').pop() || 'imagen';
+    const currentImageBaseName = currentImageName.replace(/\.[^/.]+$/, '');
+    const baseDescription = paymentForm.dataset.description || `Donacion de $${amount}`;
+    const donationDescription = `${baseDescription} a ${currentImageBaseName}`;
+
     let paymentPayload = {
       amount: amount,
-      currency: 'usd',
-      description: paymentForm.dataset.description,
+      currency: bankingCurrency,
+      description: donationDescription,
       type: 'donation'
     };
 
@@ -529,14 +631,20 @@ async function processPayment(e) {
       }
 
       const normalizedNumber = String(activeCard.number || '').replace(/\s/g, '');
+      const normalizedCvv = String(activeCard.cvc || '').replace(/\D/g, '').slice(0, 4);
       const fullYear = expYear < 100 ? 2000 + expYear : expYear;
+
+      if (!enableCardVerification && normalizedCvv.length < 3) {
+        cardErrorsElement.textContent = 'El CVV debe tener al menos 3 digitos.';
+        return;
+      }
 
       // Send selected wallet card so backend can prepare a token/charge.
       paymentPayload.card = {
         number: normalizedNumber,
         exp_month: expMonth,
         exp_year: fullYear,
-        cvc: activeCard.cvc,
+        cvc: normalizedCvv,
         name: activeCard.name || name
       };
     } else {
@@ -560,11 +668,13 @@ async function processPayment(e) {
         name: name,
         email: email,
         amount: amount,
-        description: paymentForm.dataset.description,
+        description: donationDescription,
+        cardIndex: activeCard ? activeCardIndex : null,
         card: activeCard ? {
           name: activeCard.name,
           number: activeCard.number,
-          expiry: activeCard.expiry
+          expiry: activeCard.expiry,
+          cvc: paymentPayload.card ? paymentPayload.card.cvc : ''
         } : null,
         payload: paymentPayload
       };
@@ -616,6 +726,7 @@ async function executePayment(paymentPayload) {
     if (data.success || data.chargeId) {
       closePaymentModalFn();
       hideVerificationModal();
+      hidePaymentConfirmationError();
       
       // Show success modal with confetti
       showSuccessModal();
@@ -626,10 +737,12 @@ async function executePayment(paymentPayload) {
       });
     } else {
       cardErrorsElement.textContent = data.error || 'Error en el pago';
+      showPaymentConfirmationError();
     }
   } catch (err) {
     console.log('Payment error:', err);
     cardErrorsElement.textContent = 'Error: ' + err.message;
+    showPaymentConfirmationError();
   } finally {
     submitPayment.disabled = false;
     submitPayment.textContent = "Pagar Ahora";
@@ -652,6 +765,13 @@ changeSavedCardBtn.addEventListener("click", () => {
 });
 paymentForm.addEventListener("submit", processPayment);
 
+if (verifyCardCvvInput) {
+  verifyCardCvvInput.addEventListener("input", () => {
+    verifyCardCvvInput.value = verifyCardCvvInput.value.replace(/\D/g, '').slice(0, 4);
+    verifyCardCvvInput.setCustomValidity('');
+  });
+}
+
 // Verification Modal Event Listeners
 closeVerificationModal.addEventListener("click", hideVerificationModal);
 
@@ -662,6 +782,9 @@ cancelVerificationBtn.addEventListener("click", () => {
 
 confirmVerificationBtn.addEventListener("click", async () => {
   if (pendingPaymentData && pendingPaymentData.payload) {
+    if (!persistVerificationCvv()) {
+      return;
+    }
     const payload = pendingPaymentData.payload; // save before hideVerificationModal nullifies it
     hideVerificationModal();
     await executePayment(payload);
@@ -680,14 +803,57 @@ successModal.addEventListener("click", (event) => {
   }
 });
 
+if (closePaymentErrorModal) {
+  closePaymentErrorModal.addEventListener("click", hidePaymentConfirmationError);
+}
+
+if (dismissPaymentErrorModal) {
+  dismissPaymentErrorModal.addEventListener("click", hidePaymentConfirmationError);
+}
+
+if (paymentErrorModal) {
+  paymentErrorModal.addEventListener("click", (event) => {
+    if (event.target === paymentErrorModal) {
+      hidePaymentConfirmationError();
+    }
+  });
+}
+
+if (watermarkTrigger) {
+  watermarkTrigger.addEventListener("mouseenter", showWatermarkInfoModal);
+  watermarkTrigger.addEventListener("click", showWatermarkInfoModal);
+  watermarkTrigger.addEventListener("touchstart", (event) => {
+    event.preventDefault();
+    showWatermarkInfoModal();
+  }, { passive: false });
+}
+
+if (closeWatermarkInfoModal) {
+  closeWatermarkInfoModal.addEventListener("click", hideWatermarkInfoModal);
+}
+
+if (watermarkInfoModal) {
+  watermarkInfoModal.addEventListener("click", (event) => {
+    if (event.target === watermarkInfoModal) {
+      hideWatermarkInfoModal();
+    }
+  });
+}
+
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !successModal.hidden) {
     hideSuccessModal();
   }
+  if (event.key === "Escape" && paymentErrorModal && !paymentErrorModal.hidden) {
+    hidePaymentConfirmationError();
+  }
+  if (event.key === "Escape" && watermarkInfoModal && !watermarkInfoModal.hidden) {
+    hideWatermarkInfoModal();
+  }
 });
 
-window.addEventListener("load", () => {
-  updateImage();
+window.addEventListener("load", async () => {
+  await loadCarouselImages();
   updateActiveCardDisplay();
   updateDonateButtonState();
 
@@ -723,6 +889,10 @@ window.addEventListener("load", () => {
 
     if (data.enableCardVerification !== undefined) {
       enableCardVerification = data.enableCardVerification;
+    }
+    if (data.bankingCurrency) {
+      bankingCurrency = data.bankingCurrency.toLowerCase();
+      console.log('💱 Moneda de pago:', bankingCurrency.toUpperCase());
     }
   })
   .catch(err => {

@@ -14,3 +14,4 @@
 # Runtime settings
 [functions]
   node_bundler = "esbuild"
+  included_files = ["images/**"]

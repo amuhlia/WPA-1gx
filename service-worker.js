@@ -1,21 +1,21 @@
-const CACHE_NAME = 'wpa-1gx-v9';
+const CACHE_NAME = 'wpa-1gx-v10';
 const ASSETS = [
   '.',
   'index.html',
   'style.css',
   'main-v3.js',
   'manifest.webmanifest',
-  'images/photo_2026-03-15_19-45-32.jpg',
-  'images/photo_2026-03-15_19-45-36.jpg',
-  'images/photo_2026-03-15_19-45-41.jpg',
-  'images/photo_2026-03-15_19-45-46.jpg',
-  'images/photo_2026-03-15_19-45-49.jpg',
-  'images/photo_2026-03-15_19-45-52.jpg',
-  'images/photo_2026-03-15_19-45-55.jpg',
-  'images/photo_2026-03-15_19-45-57.jpg',
-  'images/photo_2026-03-15_19-46-00.jpg',
-  'images/photo_2026-03-15_19-46-03.jpg',
-  'images/photo_2026-03-15_19-46-05.jpg',
+  'images/Alma.jpg',
+  'images/Claus.jpg',
+  'images/Dante.jpg',
+  'images/Ginger.jpg',
+  'images/Jazz.jpg',
+  'images/Kiara.jpg',
+  'images/Luz.jpg',
+  'images/Muñeca.jpg',
+  'images/Negro.jpg',
+  'images/Ruffo.jpg',
+  'images/Toby.jpg',
 ];
 
 self.addEventListener('install', (event) => {

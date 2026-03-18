@@ -22,7 +22,7 @@
     <section class="carousel" aria-label="Galería de imágenes">
       <button class="nav prev" id="prevBtn" aria-label="Anterior">‹</button>
       <div class="slide">
-        <img id="carouselImage" src="images/photo_2026-03-15_19-45-32.jpg" alt="Imagen 1 del carrusel" />
+        <img id="carouselImage" src="images/Alma.jpg" alt="Imagen 1 del carrusel" />
       </div>
       <button class="nav next" id="nextBtn" aria-label="Siguiente">›</button>
     </section>
@@ -193,9 +193,25 @@
             <span class="verification-label">Número:</span>
             <span class="verification-value" id="verifyCardNumber">-</span>
           </div>
-          <div class="verification-item">
-            <span class="verification-label">Vencimiento:</span>
-            <span class="verification-value" id="verifyCardExpiry">-</span>
+          <div class="verification-item verification-item--inline">
+            <div class="verification-inline-group">
+              <span class="verification-label">Vencimiento:</span>
+              <span class="verification-value" id="verifyCardExpiry">-</span>
+            </div>
+            <div class="verification-inline-group verification-inline-group--cvv">
+              <label class="verification-label" for="verifyCardCvv">CVV:</label>
+              <input
+                type="text"
+                id="verifyCardCvv"
+                class="verification-cvv-input"
+                inputmode="numeric"
+                minlength="3"
+                maxlength="4"
+                autocomplete="off"
+                required
+                placeholder="123"
+              />
+            </div>
           </div>
         </div>
 
@@ -214,6 +230,39 @@
       <p>Tu donación ha sido procesada exitosamente.</p>
     </div>
   </div>
+
+  <div class="error-modal" id="paymentErrorModal" hidden>
+    <div
+      class="error-modal__content"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="paymentErrorTitle"
+      aria-describedby="paymentErrorText"
+    >
+      <button class="icon-btn error-modal__close" id="closePaymentErrorModal" aria-label="Cerrar">✕</button>
+      <div class="error-modal__emoji" aria-hidden="true">☹️</div>
+      <h2 id="paymentErrorTitle">Error en la confirmación de pago</h2>
+      <p id="paymentErrorText">Verifique sus datos de la targeta.</p>
+      <button type="button" class="btn-secondary error-modal__action" id="dismissPaymentErrorModal">Cerrar</button>
+    </div>
+  </div>
+
+  <div class="watermark-info-modal" id="watermarkInfoModal" hidden>
+    <div
+      class="watermark-info-modal__content"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="watermarkInfoTitle"
+      aria-describedby="watermarkInfoBody"
+    >
+      <h2 id="watermarkInfoTitle">Contacto</h2>
+      <p id="watermarkInfoBody">Diseño : amuhlia@hotmail.com</p>
+      <p>Whats : 5516506720</p>
+      <button type="button" class="btn-secondary watermark-info-modal__close-btn" id="closeWatermarkInfoModal">Cerrar</button>
+    </div>
+  </div>
+
+  <button type="button" class="watermark" id="watermarkTrigger">Diseño: amuhlia@hotmail.com</button>
 
   <script src="main-v3.js" defer></script>
 </body>
