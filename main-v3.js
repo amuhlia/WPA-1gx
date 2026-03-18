@@ -413,6 +413,10 @@ function updatePaymentModalCardUI() {
 function openPaymentModal(amount, description) {
   hidePaymentConfirmationError();
   paymentAmount.textContent = amount.toFixed(2);
+  const currencySpan = document.getElementById('paymentCurrency');
+  if (currencySpan) {
+    currencySpan.textContent = bankingCurrency.toUpperCase();
+  }
   paymentModal.setAttribute("aria-hidden", "false");
   paymentForm.dataset.amount = amount;
   paymentForm.dataset.description = description;
