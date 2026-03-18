@@ -294,6 +294,10 @@ closeWallet.addEventListener("click", () => {
 
 walletOptions.forEach((button) => {
   button.addEventListener("click", () => {
+    if (button.disabled || button.getAttribute('aria-disabled') === 'true') {
+      return;
+    }
+
     const method = button.dataset.method;
     if (method === "card") {
       hideWalletStrip();

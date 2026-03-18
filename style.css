@@ -261,6 +261,21 @@ body {
   transform: translateY(-1px);
 }
 
+.wallet-option:disabled,
+.wallet-option[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.wallet-option:disabled:hover,
+.wallet-option[aria-disabled="true"]:hover {
+  background: rgba(255, 255, 255, 0.03);
+  transform: none;
+}
+
 .wallet-note {
   margin-top: 0.85rem;
   opacity: 0.85;
