@@ -110,13 +110,28 @@ function setSelectedSavedMethodId(paymentMethodId) {
   }
 }
 
+function setSavedMethodsSectionVisibility(isVisible) {
+  if (savedMethodsSection) {
+    savedMethodsSection.hidden = !isVisible;
+    if (isVisible) {
+      savedMethodsSection.style.removeProperty('display');
+    } else {
+      savedMethodsSection.style.display = 'none';
+    }
+  }
+
+  if (savedMethodToggleLabel) {
+    savedMethodToggleLabel.hidden = !isVisible;
+  }
+
+  if (savedPaymentMethodSelect) {
+    savedPaymentMethodSelect.hidden = !isVisible;
+  }
+}
+
 function clearSavedMethodState() {
   savedPaymentMethods = [];
   setSelectedSavedMethodId('');
-
-  if (savedMethodToggleLabel) {
-    savedMethodToggleLabel.hidden = true;
-  }
 
   if (useSavedMethodToggle) {
     useSavedMethodToggle.checked = false;
@@ -127,9 +142,7 @@ function clearSavedMethodState() {
     savedPaymentMethodSelect.disabled = true;
   }
 
-  if (savedMethodsSection) {
-    savedMethodsSection.hidden = true;
-  }
+  setSavedMethodsSectionVisibility(false);
 
   updateSubmitPaymentState();
 }
@@ -305,11 +318,7 @@ function renderSavedMethodsUI() {
     return;
   }
 
-  savedMethodsSection.hidden = false;
-
-  if (savedMethodToggleLabel) {
-    savedMethodToggleLabel.hidden = false;
-  }
+  setSavedMethodsSectionVisibility(true);
 
   savedPaymentMethodSelect.innerHTML = savedPaymentMethods
     .map((method) => `<option value="${method.id}">${formatSavedMethodLabel(method)}</option>`)
