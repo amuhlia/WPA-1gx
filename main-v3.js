@@ -118,6 +118,7 @@ const savedCardLabel = document.getElementById("savedCardLabel");
 const savedCardExpiry = document.getElementById("savedCardExpiry");
 const changeSavedCardBtn = document.getElementById("changeSavedCardBtn");
 const cardElementWrapper = document.getElementById("cardElementWrapper");
+const cardElementHint = document.getElementById("cardElementHint");
 const verifyCardCvvInput = document.getElementById("verifyCardCvv");
 
 let successModalFadeTimeout = null;
@@ -443,18 +444,30 @@ function setStripeUnavailable(message) {
 
 function updatePaymentModalCardUI() {
   const activeCard = getActiveCard();
+  const payerNameInput = document.getElementById('payerName');
 
   if (activeCard) {
     savedCardLabel.textContent = `•••• •••• •••• ${getCardLast4(activeCard)}`;
     savedCardExpiry.textContent = activeCard.expiry ? `(${activeCard.expiry})` : '';
     savedCardSummary.hidden = false;
 
-    const payerNameInput = document.getElementById('payerName');
-    if (payerNameInput && !payerNameInput.value) {
+    // Autofill non-sensitive payer data from the selected wallet card.
+    if (payerNameInput) {
       payerNameInput.value = activeCard.name;
+    }
+
+    if (cardElementHint) {
+      const expiryText = activeCard.expiry ? `, vence ${activeCard.expiry}` : '';
+      cardElementHint.textContent = `Tarjeta seleccionada: **** ${getCardLast4(activeCard)}${expiryText}. Stripe requiere capturar los datos en este campo por seguridad.`;
+      cardElementHint.hidden = false;
     }
   } else {
     savedCardSummary.hidden = true;
+
+    if (cardElementHint) {
+      cardElementHint.textContent = 'Ingresa los datos de la tarjeta para completar el pago seguro con Stripe.';
+      cardElementHint.hidden = false;
+    }
   }
 
   // Always capture payment details in Stripe Elements.
@@ -482,6 +495,9 @@ function openPaymentModal(amount, description) {
 
   if (cardElement) {
     cardElement.clear();
+    setTimeout(() => {
+      cardElement.focus();
+    }, 0);
   }
 }
 

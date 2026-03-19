@@ -774,6 +774,13 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.card-element-hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.72);
+}
+
 #card-errors {
   color: #ff4444;
   margin-top: 0.25rem;
