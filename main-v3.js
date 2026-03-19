@@ -276,10 +276,13 @@ closeDonate.addEventListener("click", () => {
 
 donateOptions.forEach((button) => {
   button.addEventListener("click", () => {
-    const value = button.dataset.value;
+    const value = Number(button.dataset.value);
+    const formattedValue = Number.isFinite(value)
+      ? value.toLocaleString('es-MX')
+      : String(button.dataset.value || '0');
     hideDonateStrip();
-    currentDonationAmount = parseFloat(value);
-    openPaymentModal(currentDonationAmount, `Donación de $${value}`);
+    currentDonationAmount = Number.isFinite(value) ? value : 0;
+    openPaymentModal(currentDonationAmount, `Donación de $${formattedValue}`);
   });
 });
 
