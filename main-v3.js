@@ -30,6 +30,8 @@ let lastEmail = localStorage.getItem(STORAGE_KEYS.lastEmail) || '';
 let stripeCustomerId = String(localStorage.getItem(STORAGE_KEYS.stripeCustomerId) || '').trim();
 let selectedSavedMethodId = String(localStorage.getItem(STORAGE_KEYS.activeSavedMethodId) || '').trim();
 let savedPaymentMethods = [];
+let isCardElementComplete = false;
+let isSubmittingPayment = false;
 
 const carouselImage = document.getElementById('carouselImage');
 const prevBtn = document.getElementById('prevBtn');
@@ -58,6 +60,7 @@ const cardElementHint = document.getElementById('cardElementHint');
 const saveCardOption = document.getElementById('saveCardOption');
 const saveCardForFuture = document.getElementById('saveCardForFuture');
 const savedMethodsSection = document.getElementById('savedMethodsSection');
+const savedMethodToggleLabel = document.getElementById('savedMethodToggleLabel');
 const useSavedMethodToggle = document.getElementById('useSavedMethodToggle');
 const savedPaymentMethodSelect = document.getElementById('savedPaymentMethodSelect');
 const walletPaySection = document.getElementById('walletPaySection');
@@ -111,6 +114,10 @@ function clearSavedMethodState() {
   savedPaymentMethods = [];
   setSelectedSavedMethodId('');
 
+  if (savedMethodToggleLabel) {
+    savedMethodToggleLabel.hidden = true;
+  }
+
   if (useSavedMethodToggle) {
     useSavedMethodToggle.checked = false;
   }
@@ -123,6 +130,8 @@ function clearSavedMethodState() {
   if (savedMethodsSection) {
     savedMethodsSection.hidden = true;
   }
+
+  updateSubmitPaymentState();
 }
 
 function updateImage() {
@@ -218,12 +227,43 @@ function formatSavedMethodLabel(method) {
 }
 
 function usingSavedMethod() {
+  const hasSavedMethods = Array.isArray(savedPaymentMethods) && savedPaymentMethods.length > 0;
   return Boolean(
+    hasSavedMethods &&
     useSavedMethodToggle &&
       useSavedMethodToggle.checked &&
       savedPaymentMethodSelect &&
       savedPaymentMethodSelect.value
   );
+}
+
+function updateSubmitPaymentState() {
+  if (!submitPayment) {
+    return;
+  }
+
+  const stripeReady = Boolean(stripe);
+  const canPayWithSavedMethod = usingSavedMethod();
+  const canPayWithCardElement = Boolean(cardElement && isCardElementComplete);
+  const canSubmit = stripeReady && !isSubmittingPayment && (canPayWithSavedMethod || canPayWithCardElement);
+
+  submitPayment.disabled = !canSubmit;
+
+  if (!stripeReady) {
+    return;
+  }
+
+  if (isSubmittingPayment) {
+    submitPayment.title = 'Procesando pago...';
+    return;
+  }
+
+  if (!canSubmit) {
+    submitPayment.title = 'Captura una tarjeta en Stripe o selecciona una tarjeta guardada.';
+    return;
+  }
+
+  submitPayment.removeAttribute('title');
 }
 
 function updatePaymentModalCardUI() {
@@ -250,6 +290,8 @@ function updatePaymentModalCardUI() {
       cardElementHint.hidden = false;
     }
   }
+
+  updateSubmitPaymentState();
 }
 
 function renderSavedMethodsUI() {
@@ -264,6 +306,10 @@ function renderSavedMethodsUI() {
   }
 
   savedMethodsSection.hidden = false;
+
+  if (savedMethodToggleLabel) {
+    savedMethodToggleLabel.hidden = false;
+  }
 
   savedPaymentMethodSelect.innerHTML = savedPaymentMethods
     .map((method) => `<option value="${method.id}">${formatSavedMethodLabel(method)}</option>`)
@@ -421,6 +467,7 @@ function openPaymentModal(amount, description) {
 
   // Hide saved-card controls until Stripe confirms available methods.
   clearSavedMethodState();
+  isCardElementComplete = false;
 
   if (paymentAmount) {
     paymentAmount.textContent = amount.toFixed(2);
@@ -461,6 +508,8 @@ function openPaymentModal(amount, description) {
     }, 0);
   }
 
+  updateSubmitPaymentState();
+
   if (USE_FUNCTIONS_API && stripeCustomerId) {
     loadSavedPaymentMethods().catch((error) => {
       console.warn('No se pudieron cargar tarjetas guardadas:', error.message);
@@ -487,6 +536,8 @@ function closePaymentModalFn() {
   if (paymentForm) {
     paymentForm.reset();
   }
+
+  isCardElementComplete = false;
 
   if (useSavedMethodToggle) {
     useSavedMethodToggle.checked = false;
@@ -742,22 +793,19 @@ function initializeStripe(publicKey) {
   cardElement.mount('#card-element');
 
   cardElement.addEventListener('change', (event) => {
+    isCardElementComplete = Boolean(event.complete);
+
     const displayError = document.getElementById('card-errors');
-    if (!displayError) {
-      return;
+    if (displayError) {
+      if (event.error) {
+        displayError.textContent = event.error.message;
+      } else {
+        displayError.textContent = '';
+      }
     }
 
-    if (event.error) {
-      displayError.textContent = event.error.message;
-    } else {
-      displayError.textContent = '';
-    }
+    updateSubmitPaymentState();
   });
-
-  if (submitPayment) {
-    submitPayment.disabled = false;
-    submitPayment.removeAttribute('title');
-  }
 
   if (donateBtn) {
     donateBtn.disabled = false;
@@ -776,11 +824,15 @@ function initializeStripe(publicKey) {
       clearSavedMethodState();
     });
   }
+
+  updateSubmitPaymentState();
 }
 
 function setStripeUnavailable(message) {
   stripe = null;
   cardElement = null;
+  isCardElementComplete = false;
+  isSubmittingPayment = false;
   resetWalletUI();
 
   const errEl = document.getElementById('card-errors');
@@ -983,7 +1035,8 @@ async function executePayment(paymentPayload) {
     return;
   }
 
-  submitPayment.disabled = true;
+  isSubmittingPayment = true;
+  updateSubmitPaymentState();
   submitPayment.textContent = 'Procesando...';
 
   try {
@@ -995,8 +1048,9 @@ async function executePayment(paymentPayload) {
     }
     showPaymentConfirmationError(error.message);
   } finally {
-    submitPayment.disabled = false;
+    isSubmittingPayment = false;
     submitPayment.textContent = 'Pagar Ahora';
+    updateSubmitPaymentState();
   }
 }
 
