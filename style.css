@@ -234,7 +234,7 @@ body {
   position: absolute;
   width: 72px;
   height: 88px;
-  padding: 2.1rem 0.3rem 0.4rem;
+  padding: 1.5rem 0.3rem 0.4rem;
   border-radius: 58% 58% 50% 50%;
   background:
     radial-gradient(circle at 38% 40%, rgba(42, 28, 23, 0.92) 0 3px, transparent 4px),
@@ -303,18 +303,6 @@ body {
   transform: translateX(-50%);
   border-bottom: 2px solid rgba(64, 42, 35, 0.85);
   border-radius: 0 0 10px 10px;
-}
-
-.dog-balloon__text {
-  position: relative;
-  z-index: 1;
-  display: block;
-  color: #2b1f34;
-  font-family: 'Fredoka One', cursive;
-  font-size: 0.6rem;
-  line-height: 1.24;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
-  text-align: center;
 }
 
 .dog-balloon__string {
