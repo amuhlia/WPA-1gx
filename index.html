@@ -74,7 +74,7 @@
         <h2>Mis Tarjetas</h2>
         <button class="icon-btn" id="closeCardModal" aria-label="Cerrar">✕</button>
       </div>
-      <p class="card-modal__disclaimer">La información personal no sera registrada/guardada en nuestro sistema de información.</p>
+      <p class="card-modal__disclaimer">Solo guardamos en este dispositivo el alias, vencimiento y ultimos 4 digitos como referencia.</p>
       <div class="card-list" id="cardList">
         <p class="card-list__empty">No tienes tarjetas registradas</p>
       </div>
@@ -98,17 +98,13 @@
           <input type="text" id="cardName" name="cardName" placeholder="Juan Pérez" required />
         </div>
         <div class="form-group">
-          <label for="cardNumber">Número de Tarjeta</label>
-          <input type="text" id="cardNumber" name="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19" required />
+          <label for="cardNumber">Ultimos 4 Digitos</label>
+          <input type="text" id="cardNumber" name="cardNumber" placeholder="1234" maxlength="4" inputmode="numeric" required />
         </div>
         <div class="form-row">
           <div class="form-group">
             <label for="cardExpiry">Vencimiento</label>
             <input type="text" id="cardExpiry" name="cardExpiry" placeholder="MM/YY" maxlength="5" required />
-          </div>
-          <div class="form-group">
-            <label for="cardCVC">CVC</label>
-            <input type="text" id="cardCVC" name="cardCVC" placeholder="123" maxlength="3" required />
           </div>
         </div>
         <button type="submit" class="form-submit">Guardar Tarjeta</button>
@@ -130,7 +126,7 @@
         </div>
 
         <div id="savedCardSummary" class="saved-card-summary" hidden>
-          <p>Usando tarjeta guardada: <span id="savedCardLabel">••••</span> <span id="savedCardExpiry"></span></p>
+          <p>Tarjeta de referencia: <span id="savedCardLabel">••••</span> <span id="savedCardExpiry"></span></p>
           <button type="button" class="link-btn" id="changeSavedCardBtn">Cambiar tarjeta</button>
         </div>
 
@@ -149,7 +145,7 @@
             <div id="card-errors" role="alert"></div>
           </div>
           <button type="submit" class="form-submit" id="submitPayment">Pagar Ahora</button>
-          <p class="payment-notice">Los pagos están procesados de forma segura con Stripe</p>
+          <p class="payment-notice">Los pagos y datos de tarjeta se procesan de forma segura con Stripe Elements.</p>
         </form>
       </div>
     </div>

@@ -9,22 +9,16 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 };
 
-function normalizeCardNumber(number) {
-  return String(number || '').replace(/\D/g, '');
-}
+function containsRawCardData(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
 
-function testTokenFromCardNumber(number) {
-  const normalized = normalizeCardNumber(number);
-  const tokenMap = {
-    '4242424242424242': 'tok_visa',
-    '4000056655665556': 'tok_visa_debit',
-    '5555555555554444': 'tok_mastercard',
-    '378282246310005': 'tok_amex',
-    '6011111111111117': 'tok_discover',
-    '3530111333300000': 'tok_jcb',
-    '30569309025904': 'tok_diners',
-  };
-  return tokenMap[normalized];
+  if (payload.card && typeof payload.card === 'object') {
+    return true;
+  }
+
+  return Boolean(payload.cardNumber || payload.number || payload.cvc || payload.exp_month || payload.exp_year);
 }
 
 exports.handler = async (event, context) => {
@@ -47,93 +41,62 @@ exports.handler = async (event, context) => {
 
   try {
     const data = JSON.parse(event.body);
-    const amount = Math.round(data.amount * 100); // Convert to cents
-    const currency = data.currency || 'usd';
 
-    let token = data.token;
-    const cardPayload = data.card;
-
-    // If no token but card data, create token from card
-    if (!token && cardPayload) {
-      const number = normalizeCardNumber(cardPayload.number);
-
-      // In test mode, prefer known test tokens
-      if (process.env.STRIPE_SECRET_KEY.startsWith('sk_test_')) {
-        token = testTokenFromCardNumber(number);
-      }
-
-      if (!token) {
-        try {
-          const expMonth = parseInt(cardPayload.exp_month);
-          const expYear = parseInt(cardPayload.exp_year);
-
-          if (isNaN(expMonth) || isNaN(expYear)) {
-            return {
-              statusCode: 400,
-              headers: corsHeaders,
-              body: JSON.stringify({
-                error: 'La tarjeta guardada tiene fecha de vencimiento invalida'
-              })
-            };
-          }
-
-          const tokenObj = await stripe.tokens.create({
-            card: {
-              number: number,
-              exp_month: expMonth,
-              exp_year: expYear,
-              cvc: cardPayload.cvc,
-              name: cardPayload.name || ''
-            }
-          });
-
-          token = tokenObj.id;
-        } catch (error) {
-          return {
-            statusCode: 400,
-            headers: corsHeaders,
-            body: JSON.stringify({
-              error: 'No se pudo tokenizar la tarjeta guardada: ' + error.message
-            })
-          };
-        }
-      }
-    }
-
-    if (!token) {
+    if (containsRawCardData(data)) {
       return {
         statusCode: 400,
         headers: corsHeaders,
         body: JSON.stringify({
-          error: 'No se recibio un token de pago valido'
+          error: 'No se aceptan datos completos de tarjeta en el servidor. Usa Stripe.js con confirmCardPayment.'
         })
       };
     }
 
-    // Create charge
-    const charge = await stripe.charges.create({
-      amount: amount,
-      currency: currency,
-      source: token,
-      description: data.description || 'PWA Donation',
-      metadata: {
-        type: data.type || 'donation',
-        payout_status: 'pending'
-      }
+    const paymentIntentId = String(data.paymentIntentId || '').trim();
+    if (!paymentIntentId) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          error: 'paymentIntentId es requerido para completar el post-procesamiento'
+        })
+      };
+    }
+
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+      expand: ['latest_charge']
     });
+
+    if (paymentIntent.status !== 'succeeded') {
+      return {
+        statusCode: 409,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          error: `El PaymentIntent aun no esta completado: ${paymentIntent.status}`
+        })
+      };
+    }
+
+    const latestCharge = paymentIntent.latest_charge;
+    const chargeId = typeof latestCharge === 'string' ? latestCharge : latestCharge?.id;
+    const chargeAmount = paymentIntent.amount_received || paymentIntent.amount;
+    const chargeCurrency = paymentIntent.currency || (data.currency || 'usd').toLowerCase();
 
     let payoutStatus = 'automatic';
 
     // Only attempt a manual payout if a valid ba_ bank account ID is configured.
     // Without destination, Stripe uses its automatic payout schedule (default behavior).
     const isValidBankId = BANK_ACCOUNT_ID && BANK_ACCOUNT_ID.startsWith('ba_');
-    if (isValidBankId && charge.status === 'succeeded') {
+    if (isValidBankId && chargeAmount > 0) {
       try {
         const payoutParams = {
-          amount: charge.amount,
-          currency: currency,
+          amount: chargeAmount,
+          currency: chargeCurrency,
           description: `Payout for ${data.description || 'Donation'}`,
-          metadata: { charge_id: charge.id }
+          metadata: {
+            charge_id: chargeId || '',
+            payment_intent_id: paymentIntent.id
+          }
         };
         // Only set destination when we have a verified bank account ID
         payoutParams.destination = BANK_ACCOUNT_ID;
@@ -151,9 +114,10 @@ exports.handler = async (event, context) => {
       headers: corsHeaders,
       body: JSON.stringify({
         success: true,
-        chargeId: charge.id,
-        amount: charge.amount / 100,
-        currency: currency,
+        paymentIntentId: paymentIntent.id,
+        chargeId,
+        amount: chargeAmount / 100,
+        currency: chargeCurrency,
         payoutStatus: payoutStatus,
         bankingCurrency: BANKING_CURRENCY
       })

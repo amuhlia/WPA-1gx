@@ -22,9 +22,49 @@ const closeCardForm = document.getElementById("closeCardForm");
 const cardForm = document.getElementById("cardForm");
 const cardList = document.getElementById("cardList");
 const toast = document.getElementById("toast");
-let savedCards = JSON.parse(localStorage.getItem('cards')) || [];
+
+function getCardLast4(card) {
+  if (!card) {
+    return '----';
+  }
+
+  const digits = String(card.last4 || card.number || '').replace(/\D/g, '');
+  return digits.slice(-4) || '----';
+}
+
+function sanitizeSavedCards(rawCards) {
+  if (!Array.isArray(rawCards)) {
+    return [];
+  }
+
+  return rawCards
+    .map((card) => {
+      const last4 = getCardLast4(card);
+      const name = String(card?.name || '').trim();
+      const expiry = String(card?.expiry || '').trim();
+
+      if (!name || last4 === '----') {
+        return null;
+      }
+
+      // Keep only non-sensitive metadata in localStorage.
+      return {
+        name,
+        last4,
+        expiry
+      };
+    })
+    .filter(Boolean);
+}
+
+let savedCards = sanitizeSavedCards(JSON.parse(localStorage.getItem('cards')) || []);
+localStorage.setItem('cards', JSON.stringify(savedCards));
 let activeCardIndex = Number(localStorage.getItem('activeCardIndex'));
 if (Number.isNaN(activeCardIndex)) activeCardIndex = null;
+if (activeCardIndex !== null && (activeCardIndex < 0 || activeCardIndex >= savedCards.length)) {
+  activeCardIndex = null;
+  localStorage.removeItem('activeCardIndex');
+}
 let lastEmail = localStorage.getItem('lastEmail') || '';
 
 const getActiveCard = () => {
@@ -33,8 +73,13 @@ const getActiveCard = () => {
 };
 
 const setActiveCard = (index) => {
-  activeCardIndex = index;
-  localStorage.setItem('activeCardIndex', index);
+  if (!Number.isInteger(index) || index < 0 || index >= savedCards.length) {
+    activeCardIndex = null;
+    localStorage.removeItem('activeCardIndex');
+  } else {
+    activeCardIndex = index;
+    localStorage.setItem('activeCardIndex', String(index));
+  }
   renderCardList();
   updateActiveCardDisplay();
   updateDonateButtonState();
@@ -82,7 +127,7 @@ function updateActiveCardDisplay() {
   const activeCard = getActiveCard();
   const infoEl = document.getElementById('activeCardInfo');
   if (activeCard) {
-    infoEl.innerHTML = `<small>${activeCard.name}</small><br><small>****${activeCard.number.slice(-4)}</small>`;
+    infoEl.innerHTML = `<small>${activeCard.name}</small><br><small>****${getCardLast4(activeCard)}</small>`;
     infoEl.hidden = false;
   } else {
     infoEl.hidden = true;
@@ -140,16 +185,10 @@ function hideDonateStrip() {
 }
 
 function updateDonateButtonState() {
-  const hasSavedCards = savedCards.length > 0;
-  donateBtn.disabled = !hasSavedCards;
-  donateBtn.setAttribute('aria-disabled', String(!hasSavedCards));
-
-  if (!hasSavedCards) {
-    donateBtn.title = 'Agrega una tarjeta en Billetera para donar';
-    hideDonateStrip();
-  } else {
-    donateBtn.removeAttribute('title');
-  }
+  // Payments now always use Stripe Elements, so Donar never depends on wallet cards.
+  donateBtn.disabled = false;
+  donateBtn.setAttribute('aria-disabled', 'false');
+  donateBtn.removeAttribute('title');
 }
 
 function showWalletStrip() {
@@ -193,7 +232,7 @@ function renderCardList() {
     <div class="card-item ${index === activeCardIndex ? 'active' : ''}">
       <div class="card-item__info">
         <p class="card-item__name">${card.name}</p>
-        <p class="card-item__number">•••• •••• •••• ${card.number.slice(-4)}</p>
+        <p class="card-item__number">•••• •••• •••• ${getCardLast4(card)}</p>
         <p class="card-item__expiry">Vence: ${card.expiry}</p>
       </div>
       <div class="card-item__actions">
@@ -242,8 +281,8 @@ function renderCardList() {
   });
 }
 
-function formatCardNumber(value) {
-  return value.replace(/\s/g, '').replace(/(\d{4})/g, '$1 ').trim();
+function formatCardLast4(value) {
+  return value.replace(/\D/g, '').slice(0, 4);
 }
 
 function formatExpiry(value) {
@@ -327,24 +366,29 @@ closeCardForm.addEventListener("click", () => {
 });
 
 document.getElementById("cardNumber").addEventListener("input", (e) => {
-  e.target.value = formatCardNumber(e.target.value);
+  e.target.value = formatCardLast4(e.target.value);
 });
 
 document.getElementById("cardExpiry").addEventListener("input", (e) => {
   e.target.value = formatExpiry(e.target.value);
 });
 
-document.getElementById("cardCVC").addEventListener("input", (e) => {
-  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 3);
-});
-
 cardForm.addEventListener("submit", (e) => {
   e.preventDefault();
+
+  const cardNumberInput = document.getElementById("cardNumber");
+  const sanitizedLast4 = formatCardLast4(cardNumberInput.value);
+  if (sanitizedLast4.length !== 4) {
+    cardNumberInput.setCustomValidity('Ingresa exactamente 4 digitos.');
+    cardNumberInput.reportValidity();
+    return;
+  }
+  cardNumberInput.setCustomValidity('');
+
   const newCard = {
     name: document.getElementById("cardName").value,
-    number: document.getElementById("cardNumber").value.replace(/\s/g, ''),
-    expiry: document.getElementById("cardExpiry").value,
-    cvc: document.getElementById("cardCVC").value
+    last4: sanitizedLast4,
+    expiry: document.getElementById("cardExpiry").value
   };
   savedCards.push(newCard);
   localStorage.setItem('cards', JSON.stringify(savedCards));
@@ -401,8 +445,8 @@ function updatePaymentModalCardUI() {
   const activeCard = getActiveCard();
 
   if (activeCard) {
-    savedCardLabel.textContent = `•••• •••• •••• ${activeCard.number.slice(-4)}`;
-    savedCardExpiry.textContent = `(${activeCard.expiry})`;
+    savedCardLabel.textContent = `•••• •••• •••• ${getCardLast4(activeCard)}`;
+    savedCardExpiry.textContent = activeCard.expiry ? `(${activeCard.expiry})` : '';
     savedCardSummary.hidden = false;
 
     const payerNameInput = document.getElementById('payerName');
@@ -413,8 +457,8 @@ function updatePaymentModalCardUI() {
     savedCardSummary.hidden = true;
   }
 
-  // If a wallet card is active, use it directly at charge time.
-  cardElementWrapper.style.display = activeCard ? 'none' : 'block';
+  // Always capture payment details in Stripe Elements.
+  cardElementWrapper.style.display = 'block';
 }
 
 function openPaymentModal(amount, description) {
@@ -462,50 +506,28 @@ function showVerificationModal(paymentData) {
   if (paymentData.card) {
     cardSection.style.display = 'block';
     document.getElementById('verifyCardName').textContent = paymentData.card.name || '-';
-    document.getElementById('verifyCardNumber').textContent = `•••• •••• •••• ${paymentData.card.number.slice(-4)}`;
+    document.getElementById('verifyCardNumber').textContent = `•••• •••• •••• ${getCardLast4(paymentData.card)}`;
     document.getElementById('verifyCardExpiry').textContent = paymentData.card.expiry || '-';
-    if (verifyCardCvvInput) {
-      verifyCardCvvInput.value = paymentData.card.cvc || '';
-      verifyCardCvvInput.setCustomValidity('');
-      verifyCardCvvInput.disabled = false;
-    }
   } else {
     cardSection.style.display = 'none';
-    if (verifyCardCvvInput) {
-      verifyCardCvvInput.value = '';
-      verifyCardCvvInput.setCustomValidity('');
-      verifyCardCvvInput.disabled = true;
-    }
+  }
+
+  if (verifyCardCvvInput) {
+    verifyCardCvvInput.value = '';
+    verifyCardCvvInput.setCustomValidity('');
+    verifyCardCvvInput.disabled = true;
+  }
+
+  const cvvGroup = document.querySelector('.verification-inline-group--cvv');
+  if (cvvGroup) {
+    cvvGroup.style.display = 'none';
   }
 
   verificationModal.setAttribute("aria-hidden", "false");
 }
 
 function persistVerificationCvv() {
-  if (!pendingPaymentData || !pendingPaymentData.payload || !pendingPaymentData.payload.card || !verifyCardCvvInput) {
-    return true;
-  }
-
-  const sanitizedCvv = verifyCardCvvInput.value.replace(/\D/g, '').slice(0, 4);
-  verifyCardCvvInput.value = sanitizedCvv;
-
-  if (sanitizedCvv.length < 3) {
-    verifyCardCvvInput.setCustomValidity('El CVV debe tener al menos 3 digitos.');
-    verifyCardCvvInput.reportValidity();
-    verifyCardCvvInput.focus();
-    return false;
-  }
-
-  verifyCardCvvInput.setCustomValidity('');
-
-  pendingPaymentData.payload.card.cvc = sanitizedCvv;
-
-  const cardIndex = pendingPaymentData.cardIndex;
-  if (Number.isInteger(cardIndex) && cardIndex >= 0 && savedCards[cardIndex]) {
-    savedCards[cardIndex].cvc = sanitizedCvv;
-    localStorage.setItem('cards', JSON.stringify(savedCards));
-  }
-
+  // CVV verification is not used when card data is handled only by Stripe Elements.
   return true;
 }
 
@@ -602,21 +624,15 @@ async function processPayment(e) {
   hidePaymentConfirmationError();
   
   try {
-    if (!stripe) {
+    if (!stripe || !cardElement) {
       console.error('❌ stripe no inicializado');
       cardErrorsElement.textContent = 'El sistema de pagos no está disponible. Revisa la configuración de las claves de Stripe en Netlify.';
       return;
     }
 
     const activeCard = getActiveCard();
-    console.log('💳 activeCard:', activeCard ? `****${activeCard.number.slice(-4)}` : 'ninguna (usando Stripe Element)');
+    console.log('💳 activeCard:', activeCard ? `****${getCardLast4(activeCard)}` : 'ninguna (usando Stripe Element)');
     console.log('🔧 stripe inicializado:', !!stripe, '| cardElement:', !!cardElement);
-
-    if (!activeCard && !cardElement) {
-      console.error('❌ Sin tarjeta activa ni cardElement');
-      cardErrorsElement.textContent = 'No se pudo inicializar el formulario de tarjeta.';
-      return;
-    }
 
     const currentImagePath = images[currentIndex] || carouselImage.getAttribute('src') || '';
     const currentImageName = String(currentImagePath).split('/').pop() || 'imagen';
@@ -624,53 +640,22 @@ async function processPayment(e) {
     const baseDescription = paymentForm.dataset.description || `Donacion de $${amount}`;
     const donationDescription = `${baseDescription} a ${currentImageBaseName}`;
 
-    let paymentPayload = {
+    const paymentPayload = {
       amount: amount,
       currency: bankingCurrency,
       description: donationDescription,
-      type: 'donation'
+      type: 'donation',
+      name,
+      email
     };
 
-    if (activeCard) {
-      const [expMonthRaw, expYearRaw] = (activeCard.expiry || '').split('/');
-      const expMonth = parseInt(expMonthRaw, 10);
-      const expYear = parseInt(expYearRaw, 10);
-
-      if (!expMonth || !expYear) {
-        cardErrorsElement.textContent = 'La tarjeta guardada tiene fecha de vencimiento invalida.';
-        return;
-      }
-
-      const normalizedNumber = String(activeCard.number || '').replace(/\s/g, '');
-      const normalizedCvv = String(activeCard.cvc || '').replace(/\D/g, '').slice(0, 4);
-      const fullYear = expYear < 100 ? 2000 + expYear : expYear;
-
-      if (!enableCardVerification && normalizedCvv.length < 3) {
-        cardErrorsElement.textContent = 'El CVV debe tener al menos 3 digitos.';
-        return;
-      }
-
-      // Send selected wallet card so backend can prepare a token/charge.
-      paymentPayload.card = {
-        number: normalizedNumber,
-        exp_month: expMonth,
-        exp_year: fullYear,
-        cvc: normalizedCvv,
-        name: activeCard.name || name
-      };
-    } else {
-      const tokenResult = await stripe.createToken(cardElement, { name });
-      console.log('Token result:', tokenResult);
-
-      if (tokenResult.error) {
-        cardErrorsElement.textContent = tokenResult.error.message;
-        return;
-      }
-
-      paymentPayload.token = tokenResult.token.id;
-    }
-    
-    console.log('✅ paymentPayload listo:', { ...paymentPayload, card: paymentPayload.card ? '(card data present)' : undefined, token: paymentPayload.token || undefined });
+    console.log('✅ paymentPayload listo:', {
+      amount: paymentPayload.amount,
+      currency: paymentPayload.currency,
+      description: paymentPayload.description,
+      type: paymentPayload.type,
+      hasCardReference: Boolean(activeCard)
+    });
     console.log('🔒 enableCardVerification:', enableCardVerification);
 
     // If card verification is enabled, show verification modal instead of processing immediately
@@ -683,9 +668,8 @@ async function processPayment(e) {
         cardIndex: activeCard ? activeCardIndex : null,
         card: activeCard ? {
           name: activeCard.name,
-          number: activeCard.number,
-          expiry: activeCard.expiry,
-          cvc: paymentPayload.card ? paymentPayload.card.cvc : ''
+          last4: getCardLast4(activeCard),
+          expiry: activeCard.expiry
         } : null,
         payload: paymentPayload
       };
@@ -713,43 +697,84 @@ async function executePayment(paymentPayload) {
   submitPayment.textContent = "Procesando...";
   
   try {
-    // Send payment to backend
-    console.log('📤 Enviando al servidor de pagos:', {
-      url: `${API_URL}/process-payment`,
+    // Create a PaymentIntent server-side, then confirm with Stripe.js.
+    console.log('📤 Solicitando PaymentIntent:', {
+      url: `${API_URL}/create-payment-intent`,
       payload: {
-        ...paymentPayload,
-        card: paymentPayload.card ? {
-          ...paymentPayload.card,
-          number: '****' + String(paymentPayload.card.number || '').slice(-4),
-          cvc: '***'
-        } : undefined
+        amount: paymentPayload.amount,
+        currency: paymentPayload.currency,
+        description: paymentPayload.description,
+        type: paymentPayload.type
       }
     });
-    const response = await fetch(`${API_URL}/process-payment`, {
+
+    const intentResponse = await fetch(`${API_URL}/create-payment-intent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(paymentPayload)
+      body: JSON.stringify({
+        amount: paymentPayload.amount,
+        currency: paymentPayload.currency,
+        description: paymentPayload.description,
+        type: paymentPayload.type
+      })
     });
-    
-    const data = await response.json();
-    console.log('Fetch response:', data);
-    
-    if (data.success || data.chargeId) {
-      closePaymentModalFn();
-      hideVerificationModal();
-      hidePaymentConfirmationError();
-      
-      // Show success modal with confetti
-      showSuccessModal();
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    } else {
-      cardErrorsElement.textContent = data.error || 'Error en el pago';
-      showPaymentConfirmationError();
+
+    const intentData = await intentResponse.json();
+    if (!intentResponse.ok) {
+      throw new Error(intentData.error || 'No se pudo inicializar el pago seguro.');
     }
+
+    if (!intentData.clientSecret) {
+      throw new Error('No se recibio clientSecret de Stripe.');
+    }
+
+    const confirmResult = await stripe.confirmCardPayment(intentData.clientSecret, {
+      payment_method: {
+        card: cardElement,
+        billing_details: {
+          name: paymentPayload.name,
+          email: paymentPayload.email
+        }
+      }
+    });
+
+    if (confirmResult.error) {
+      cardErrorsElement.textContent = confirmResult.error.message || 'Error al confirmar el pago.';
+      showPaymentConfirmationError();
+      return;
+    }
+
+    const paymentIntent = confirmResult.paymentIntent;
+    if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+      throw new Error(`Estado de pago no completado: ${paymentIntent ? paymentIntent.status : 'desconocido'}`);
+    }
+
+    // Optional post-processing (e.g., payout/status bookkeeping) without blocking checkout success.
+    fetch(`${API_URL}/process-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paymentIntentId: paymentIntent.id,
+        amount: paymentPayload.amount,
+        currency: paymentPayload.currency,
+        description: paymentPayload.description,
+        type: paymentPayload.type
+      })
+    }).catch((postProcessError) => {
+      console.warn('No se pudo notificar post-procesamiento:', postProcessError);
+    });
+
+    closePaymentModalFn();
+    hideVerificationModal();
+    hidePaymentConfirmationError();
+
+    // Show success modal with confetti
+    showSuccessModal();
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
   } catch (err) {
     console.log('Payment error:', err);
     cardErrorsElement.textContent = 'Error: ' + err.message;
@@ -775,13 +800,6 @@ changeSavedCardBtn.addEventListener("click", () => {
   showWalletStrip();
 });
 paymentForm.addEventListener("submit", processPayment);
-
-if (verifyCardCvvInput) {
-  verifyCardCvvInput.addEventListener("input", () => {
-    verifyCardCvvInput.value = verifyCardCvvInput.value.replace(/\D/g, '').slice(0, 4);
-    verifyCardCvvInput.setCustomValidity('');
-  });
-}
 
 // Verification Modal Event Listeners
 closeVerificationModal.addEventListener("click", hideVerificationModal);
