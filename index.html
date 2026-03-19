@@ -8,11 +8,49 @@
   <title>Zákia Dogs&Cats</title>
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://js.stripe.com/v3/"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 <body>
+  <div class="welcome-intro" id="welcomeIntro" role="dialog" aria-modal="true" aria-labelledby="welcomeIntroTitle" aria-hidden="true" hidden>
+    <div class="welcome-intro__overlay"></div>
+    <div class="dog-balloons" aria-hidden="true">
+      <div class="dog-balloon dog-balloon--one">
+        <span class="dog-balloon__snout"></span>
+        <span class="dog-balloon__text">A rescatar peluditos.</span>
+        <span class="dog-balloon__string"></span>
+      </div>
+      <div class="dog-balloon dog-balloon--two">
+        <span class="dog-balloon__snout"></span>
+        <span class="dog-balloon__text">A rescatar peluditos.</span>
+        <span class="dog-balloon__string"></span>
+      </div>
+      <div class="dog-balloon dog-balloon--three">
+        <span class="dog-balloon__snout"></span>
+        <span class="dog-balloon__text">A rescatar peluditos.</span>
+        <span class="dog-balloon__string"></span>
+      </div>
+      <div class="dog-balloon dog-balloon--four">
+        <span class="dog-balloon__snout"></span>
+        <span class="dog-balloon__text">A rescatar peluditos.</span>
+        <span class="dog-balloon__string"></span>
+      </div>
+      <div class="dog-balloon dog-balloon--five">
+        <span class="dog-balloon__snout"></span>
+        <span class="dog-balloon__text">A rescatar peluditos.</span>
+        <span class="dog-balloon__string"></span>
+      </div>
+    </div>
+    <div class="welcome-intro__body">
+      <h2 id="welcomeIntroTitle" class="welcome-intro__title">A rescatar peluditos.</h2>
+      <button type="button" class="btn-secondary welcome-intro__skip" id="skipWelcomeIntro">Continuar</button>
+    </div>
+  </div>
+
   <main class="app">
     <header class="header">
       <h1 class="title">Zákia Dogs&Cats</h1>
@@ -63,12 +101,6 @@
           <p class="payment-amount__value"><span id="paymentAmount">0</span> <span id="paymentCurrency">USD</span></p>
         </div>
 
-        <section class="wallet-pay" id="walletPaySection" hidden>
-          <p class="payment-label">Billetera Stripe</p>
-          <div id="wallet-button" class="wallet-pay__button"></div>
-          <p class="wallet-pay__status" id="walletStatus">Apple Pay o Google Pay no disponibles en este dispositivo.</p>
-        </section>
-
         <form id="paymentForm" class="payment-form">
           <div class="form-group">
             <label for="payerName">Nombre Completo</label>
@@ -78,6 +110,19 @@
             <label for="payerEmail">Correo Electrónico</label>
             <input type="email" id="payerEmail" name="payerEmail" placeholder="juan@example.com" required />
           </div>
+          <p class="payment-methods-label">Elije un metodo de pago</p>
+          <section class="wallet-pay" id="walletPaySection" hidden>
+            <p class="payment-label">Billetera Stripe</p>
+            <div id="wallet-button" class="wallet-pay__button"></div>
+            <p class="wallet-pay__status" id="walletStatus">Apple Pay o Google Pay no disponibles en este dispositivo.</p>
+          </section>
+          <section class="saved-methods" id="savedMethodsSection" hidden>
+            <label class="saved-methods__toggle" id="savedMethodToggleLabel">
+              <input type="checkbox" id="useSavedMethodToggle" />
+              Usar tarjeta guardada
+            </label>
+            <select id="savedPaymentMethodSelect" class="saved-methods__select" disabled></select>
+          </section>
           <div class="form-group" id="cardElementWrapper">
             <label>Datos de la Tarjeta</label>
             <p id="cardElementHint" class="card-element-hint" hidden></p>
@@ -88,13 +133,6 @@
             <input type="checkbox" id="saveCardForFuture" />
             Guardar tarjeta de forma segura para no volver a teclearla
           </label>
-          <section class="saved-methods" id="savedMethodsSection" hidden>
-            <label class="saved-methods__toggle" id="savedMethodToggleLabel">
-              <input type="checkbox" id="useSavedMethodToggle" />
-              Usar tarjeta guardada
-            </label>
-            <select id="savedPaymentMethodSelect" class="saved-methods__select" disabled></select>
-          </section>
           <button type="submit" class="form-submit" id="submitPayment">Pagar Ahora</button>
           <p class="payment-notice">Los pagos y datos de tarjeta se procesan de forma segura con Stripe Elements.</p>
         </form>

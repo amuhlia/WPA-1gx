@@ -6,11 +6,13 @@ const isLocalhost = LOCAL_HOSTNAMES.has(window.location.hostname);
 const isLikelyNetlifyDev = isLocalhost && (window.location.port === '8888' || window.location.port === '8889');
 const USE_FUNCTIONS_API = !isLocalhost || isLikelyNetlifyDev;
 const IMAGE_FILE_PATTERN = /\.(avif|bmp|gif|jpe?g|png|webp|svg)$/i;
+const FIRST_VISIT_INTRO_DURATION_MS = 5200;
 const STORAGE_KEYS = {
   lastPayerName: 'lastPayerName',
   lastEmail: 'lastEmail',
   stripeCustomerId: 'stripeCustomerId',
-  activeSavedMethodId: 'activeSavedMethodId'
+  activeSavedMethodId: 'activeSavedMethodId',
+  firstVisitIntroSeen: 'firstVisitIntroSeen'
 };
 
 let images = [];
@@ -40,6 +42,8 @@ const donateBtn = document.getElementById('donateBtn');
 const donateStrip = document.getElementById('donateStrip');
 const closeDonate = document.getElementById('closeDonate');
 const donateOptions = document.querySelectorAll('.donate-option');
+const welcomeIntro = document.getElementById('welcomeIntro');
+const skipWelcomeIntro = document.getElementById('skipWelcomeIntro');
 
 const successModal = document.getElementById('successModal');
 const closeSuccessModal = document.getElementById('closeSuccessModal');
@@ -75,6 +79,7 @@ const verifyCardCvvInput = document.getElementById('verifyCardCvv');
 
 let successModalFadeTimeout = null;
 let successModalAutoCloseTimeout = null;
+let welcomeIntroTimeout = null;
 
 if (submitPayment) {
   submitPayment.disabled = true;
@@ -90,6 +95,51 @@ function blurFocusedElementWithin(container) {
   if (container && activeElement && container.contains(activeElement) && typeof activeElement.blur === 'function') {
     activeElement.blur();
   }
+}
+
+function hasSeenFirstVisitIntro() {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.firstVisitIntroSeen) === '1';
+  } catch (error) {
+    return false;
+  }
+}
+
+function markFirstVisitIntroAsSeen() {
+  try {
+    localStorage.setItem(STORAGE_KEYS.firstVisitIntroSeen, '1');
+  } catch (error) {
+    // Ignore storage errors and continue with runtime behavior.
+  }
+}
+
+function hideFirstVisitIntro() {
+  if (!welcomeIntro) {
+    return;
+  }
+
+  if (welcomeIntroTimeout) {
+    clearTimeout(welcomeIntroTimeout);
+    welcomeIntroTimeout = null;
+  }
+
+  blurFocusedElementWithin(welcomeIntro);
+  welcomeIntro.setAttribute('aria-hidden', 'true');
+  welcomeIntro.hidden = true;
+}
+
+function showFirstVisitIntroIfNeeded() {
+  if (!welcomeIntro || hasSeenFirstVisitIntro()) {
+    return;
+  }
+
+  markFirstVisitIntroAsSeen();
+  welcomeIntro.hidden = false;
+  welcomeIntro.setAttribute('aria-hidden', 'false');
+
+  welcomeIntroTimeout = setTimeout(() => {
+    hideFirstVisitIntro();
+  }, FIRST_VISIT_INTRO_DURATION_MS);
 }
 
 function setStripeCustomerId(customerId) {
@@ -1212,6 +1262,20 @@ if (donateOptions.length) {
   });
 }
 
+if (skipWelcomeIntro) {
+  skipWelcomeIntro.addEventListener('click', () => {
+    hideFirstVisitIntro();
+  });
+}
+
+if (welcomeIntro) {
+  welcomeIntro.addEventListener('click', (event) => {
+    if (event.target === welcomeIntro || event.target.classList.contains('welcome-intro__overlay')) {
+      hideFirstVisitIntro();
+    }
+  });
+}
+
 if (useSavedMethodToggle) {
   useSavedMethodToggle.addEventListener('change', () => {
     if (savedPaymentMethodSelect) {
@@ -1323,6 +1387,10 @@ if (watermarkInfoModal) {
 }
 
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && welcomeIntro && !welcomeIntro.hidden) {
+    hideFirstVisitIntro();
+  }
+
   if (event.key === 'Escape' && successModal && !successModal.hidden) {
     hideSuccessModal();
   }
@@ -1337,6 +1405,8 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('load', async () => {
+  showFirstVisitIntroIfNeeded();
+
   await loadCarouselImages();
   renderSavedMethodsUI();
 
