@@ -406,12 +406,14 @@ body {
   position: relative;
   width: 100%;
   max-width: 500px;
+  max-height: calc(100dvh - 2rem);
   background: rgba(20, 28, 50, 0.98);
   backdrop-filter: blur(16px);
   border-radius: 18px;
   padding: 2rem;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   margin: 1rem;
+  overflow-y: auto;
 }
 
 .payment-modal__header {
@@ -796,6 +798,32 @@ body {
 }
 
 @media (max-width: 560px) {
+  .payment-modal {
+    align-items: flex-end;
+    padding: 0.5rem;
+  }
+
+  .payment-modal__content {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - 0.75rem);
+    margin: 0;
+    padding: 1rem;
+    border-radius: 16px;
+  }
+
+  .payment-modal__header {
+    margin-bottom: 1rem;
+  }
+
+  .payment-modal__body {
+    gap: 1rem;
+  }
+
+  .payment-amount__value {
+    font-size: 1.65rem;
+  }
+
   .watermark {
     right: 0.55rem;
     bottom: 0.45rem;
