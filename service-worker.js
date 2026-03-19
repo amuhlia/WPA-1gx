@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wpa-1gx-v10';
+const CACHE_NAME = 'wpa-1gx-v11';
 const ASSETS = [
   '.',
   'index.html',

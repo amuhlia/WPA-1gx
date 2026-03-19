@@ -1,7 +1,6 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const BANKING_CURRENCY = process.env.BANKING_CURRENCY || 'MXN';
-const ENABLE_CARD_VERIFICATION = process.env.ENABLE_CARD_VERIFICATION === 'true';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,24 +36,55 @@ exports.handler = async (event, context) => {
 
   try {
     const data = JSON.parse(event.body);
-    const amount = Math.round(data.amount * 100); // Convert to cents
-    const currency = data.currency || 'usd';
+    const amount = Math.round(Number(data.amount || 0) * 100); // Convert to cents
+    const currency = String(data.currency || 'usd').toLowerCase();
+    const description = String(data.description || '').trim();
+    const customerId = String(data.customerId || '').trim();
+    const receiptEmail = String(data.receiptEmail || '').trim();
+    const savePaymentMethod = data.savePaymentMethod === true;
 
-    const intent = await stripe.paymentIntents.create({
-      amount: amount,
-      currency: currency,
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Monto invalido para PaymentIntent' })
+      };
+    }
+
+    const intentParams = {
+      amount,
+      currency,
+      description,
+      payment_method_types: ['card'],
       metadata: {
         type: data.type || 'donation',
-        description: data.description || '',
+        description,
         banking_currency: BANKING_CURRENCY
       }
-    });
+    };
+
+    if (customerId) {
+      intentParams.customer = customerId;
+
+      if (savePaymentMethod) {
+        // Ask Stripe to attach the card to this customer after successful confirmation.
+        intentParams.setup_future_usage = 'off_session';
+      }
+    }
+
+    if (receiptEmail) {
+      intentParams.receipt_email = receiptEmail;
+    }
+
+    const intent = await stripe.paymentIntents.create(intentParams);
 
     return {
       statusCode: 200,
       headers: corsHeaders,
       body: JSON.stringify({
+        paymentIntentId: intent.id,
         clientSecret: intent.client_secret,
+        status: intent.status,
         publicKey: process.env.STRIPE_PUBLIC_KEY,
         bankingCurrency: BANKING_CURRENCY,
         enableCardVerification: process.env.ENABLE_CARD_VERIFICATION === 'true'

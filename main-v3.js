@@ -1,172 +1,85 @@
 console.log('Loading main.js v3');
 
+const API_URL = '/.netlify/functions';
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
+const isLocalhost = LOCAL_HOSTNAMES.has(window.location.hostname);
+const isLikelyNetlifyDev = isLocalhost && (window.location.port === '8888' || window.location.port === '8889');
+const USE_FUNCTIONS_API = !isLocalhost || isLikelyNetlifyDev;
+const IMAGE_FILE_PATTERN = /\.(avif|bmp|gif|jpe?g|png|webp|svg)$/i;
+const STORAGE_KEYS = {
+  lastPayerName: 'lastPayerName',
+  lastEmail: 'lastEmail',
+  stripeCustomerId: 'stripeCustomerId',
+  activeSavedMethodId: 'activeSavedMethodId'
+};
+
 let images = [];
 let currentIndex = 0;
-
-const carouselImage = document.getElementById("carouselImage");
-const prevBtn = document.getElementById("prevBtn");
-const nextBtn = document.getElementById("nextBtn");
-const donateBtn = document.getElementById("donateBtn");
-const donateStrip = document.getElementById("donateStrip");
-const closeDonate = document.getElementById("closeDonate");
-const donateOptions = document.querySelectorAll(".donate-option");
-const walletBtn = document.getElementById("walletBtn");
-const walletStrip = document.getElementById("walletStrip");
-const closeWallet = document.getElementById("closeWallet");
-const walletOptions = document.querySelectorAll(".wallet-option");
-const cardModal = document.getElementById("cardModal");
-const closeCardModal = document.getElementById("closeCardModal");
-const addCardBtn = document.getElementById("addCardBtn");
-const cardFormModal = document.getElementById("cardFormModal");
-const closeCardForm = document.getElementById("closeCardForm");
-const cardForm = document.getElementById("cardForm");
-const cardList = document.getElementById("cardList");
-const toast = document.getElementById("toast");
-
-function getCardLast4(card) {
-  if (!card) {
-    return '----';
-  }
-
-  const digits = String(card.last4 || card.number || '').replace(/\D/g, '');
-  return digits.slice(-4) || '----';
-}
-
-function sanitizeSavedCards(rawCards) {
-  if (!Array.isArray(rawCards)) {
-    return [];
-  }
-
-  return rawCards
-    .map((card) => {
-      const last4 = getCardLast4(card);
-      const name = String(card?.name || '').trim();
-      const expiry = String(card?.expiry || '').trim();
-
-      if (!name || last4 === '----') {
-        return null;
-      }
-
-      // Keep only non-sensitive metadata in localStorage.
-      return {
-        name,
-        last4,
-        expiry
-      };
-    })
-    .filter(Boolean);
-}
-
-let savedCards = sanitizeSavedCards(JSON.parse(localStorage.getItem('cards')) || []);
-localStorage.setItem('cards', JSON.stringify(savedCards));
-let activeCardIndex = Number(localStorage.getItem('activeCardIndex'));
-if (Number.isNaN(activeCardIndex)) activeCardIndex = null;
-if (activeCardIndex !== null && (activeCardIndex < 0 || activeCardIndex >= savedCards.length)) {
-  activeCardIndex = null;
-  localStorage.removeItem('activeCardIndex');
-}
-let lastEmail = localStorage.getItem('lastEmail') || '';
-
-const getActiveCard = () => {
-  if (activeCardIndex === null) return null;
-  return savedCards[activeCardIndex] || null;
-};
-
-const setActiveCard = (index) => {
-  if (!Number.isInteger(index) || index < 0 || index >= savedCards.length) {
-    activeCardIndex = null;
-    localStorage.removeItem('activeCardIndex');
-  } else {
-    activeCardIndex = index;
-    localStorage.setItem('activeCardIndex', String(index));
-  }
-  renderCardList();
-  updateActiveCardDisplay();
-  updateDonateButtonState();
-};
-
-// Payment system
-const API_URL = '/.netlify/functions';
 let stripe = null;
 let elements = null;
 let cardElement = null;
+let paymentRequest = null;
+let paymentRequestButtonElement = null;
 let currentDonationAmount = 0;
-let pendingPaymentContext = null;
-let enableCardVerification = false;
 let pendingPaymentData = null;
+let enableCardVerification = false;
 let bankingCurrency = 'usd';
+let stripeCountry = 'MX';
+let lastPayerName = localStorage.getItem(STORAGE_KEYS.lastPayerName) || '';
+let lastEmail = localStorage.getItem(STORAGE_KEYS.lastEmail) || '';
+let stripeCustomerId = String(localStorage.getItem(STORAGE_KEYS.stripeCustomerId) || '').trim();
+let selectedSavedMethodId = String(localStorage.getItem(STORAGE_KEYS.activeSavedMethodId) || '').trim();
+let savedPaymentMethods = [];
 
-const successModal = document.getElementById("successModal");
-const closeSuccessModal = document.getElementById("closeSuccessModal");
-const paymentErrorModal = document.getElementById("paymentErrorModal");
-const closePaymentErrorModal = document.getElementById("closePaymentErrorModal");
-const dismissPaymentErrorModal = document.getElementById("dismissPaymentErrorModal");
-const watermarkTrigger = document.getElementById("watermarkTrigger");
-const watermarkInfoModal = document.getElementById("watermarkInfoModal");
-const closeWatermarkInfoModal = document.getElementById("closeWatermarkInfoModal");
-const paymentModal = document.getElementById("paymentModal");
-const closePaymentModal = document.getElementById("closePaymentModal");
-const paymentForm = document.getElementById("paymentForm");
-const paymentAmount = document.getElementById("paymentAmount");
-const submitPayment = document.getElementById("submitPayment");
-const savedCardSummary = document.getElementById("savedCardSummary");
-const verificationModal = document.getElementById("verificationModal");
-const closeVerificationModal = document.getElementById("closeVerificationModal");
-const confirmVerificationBtn = document.getElementById("confirmVerificationBtn");
-const cancelVerificationBtn = document.getElementById("cancelVerificationBtn");
-const savedCardLabel = document.getElementById("savedCardLabel");
-const savedCardExpiry = document.getElementById("savedCardExpiry");
-const changeSavedCardBtn = document.getElementById("changeSavedCardBtn");
-const cardElementWrapper = document.getElementById("cardElementWrapper");
-const cardElementHint = document.getElementById("cardElementHint");
-const verifyCardCvvInput = document.getElementById("verifyCardCvv");
+const carouselImage = document.getElementById('carouselImage');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const donateBtn = document.getElementById('donateBtn');
+const donateStrip = document.getElementById('donateStrip');
+const closeDonate = document.getElementById('closeDonate');
+const donateOptions = document.querySelectorAll('.donate-option');
+
+const successModal = document.getElementById('successModal');
+const closeSuccessModal = document.getElementById('closeSuccessModal');
+const paymentErrorModal = document.getElementById('paymentErrorModal');
+const closePaymentErrorModal = document.getElementById('closePaymentErrorModal');
+const dismissPaymentErrorModal = document.getElementById('dismissPaymentErrorModal');
+const watermarkTrigger = document.getElementById('watermarkTrigger');
+const watermarkInfoModal = document.getElementById('watermarkInfoModal');
+const closeWatermarkInfoModal = document.getElementById('closeWatermarkInfoModal');
+
+const paymentModal = document.getElementById('paymentModal');
+const closePaymentModal = document.getElementById('closePaymentModal');
+const paymentForm = document.getElementById('paymentForm');
+const paymentAmount = document.getElementById('paymentAmount');
+const submitPayment = document.getElementById('submitPayment');
+const cardElementWrapper = document.getElementById('cardElementWrapper');
+const cardElementHint = document.getElementById('cardElementHint');
+const saveCardOption = document.getElementById('saveCardOption');
+const saveCardForFuture = document.getElementById('saveCardForFuture');
+const savedMethodsSection = document.getElementById('savedMethodsSection');
+const useSavedMethodToggle = document.getElementById('useSavedMethodToggle');
+const savedPaymentMethodSelect = document.getElementById('savedPaymentMethodSelect');
+const walletPaySection = document.getElementById('walletPaySection');
+const walletButtonContainer = document.getElementById('wallet-button');
+const walletStatus = document.getElementById('walletStatus');
+
+const verificationModal = document.getElementById('verificationModal');
+const closeVerificationModal = document.getElementById('closeVerificationModal');
+const confirmVerificationBtn = document.getElementById('confirmVerificationBtn');
+const cancelVerificationBtn = document.getElementById('cancelVerificationBtn');
+const verifyCardCvvInput = document.getElementById('verifyCardCvv');
 
 let successModalFadeTimeout = null;
 let successModalAutoCloseTimeout = null;
 
-function updateActiveCardDisplay() {
-  const activeCard = getActiveCard();
-  const infoEl = document.getElementById('activeCardInfo');
-  if (activeCard) {
-    infoEl.innerHTML = `<small>${activeCard.name}</small><br><small>****${getCardLast4(activeCard)}</small>`;
-    infoEl.hidden = false;
-  } else {
-    infoEl.hidden = true;
-  }
+if (submitPayment) {
+  submitPayment.disabled = true;
 }
 
-function updateImage() {
-  if (!images.length) {
-    return;
-  }
-
-  const src = images[currentIndex];
-  console.log('Updating image to:', src, 'index:', currentIndex);
-  carouselImage.src = src;
-  carouselImage.alt = `Imagen ${currentIndex + 1} del carrusel`;
-}
-
-async function loadCarouselImages() {
-  try {
-    const response = await fetch(`${API_URL}/list-images`);
-    const data = await response.json();
-
-    if (Array.isArray(data.images) && data.images.length > 0) {
-      images = data.images;
-      currentIndex = 0;
-      updateImage();
-      console.log('Carousel images loaded from /images:', images.length);
-      return;
-    }
-  } catch (error) {
-    console.warn('Could not load image list from /images:', error.message);
-  }
-
-  // Fallback to current image already present in the DOM
-  const fallbackSrc = carouselImage.getAttribute('src');
-  images = fallbackSrc ? [fallbackSrc] : [];
-  currentIndex = 0;
-  updateImage();
+if (donateBtn) {
+  donateBtn.disabled = false;
+  donateBtn.removeAttribute('title');
 }
 
 function blurFocusedElementWithin(container) {
@@ -176,319 +89,365 @@ function blurFocusedElementWithin(container) {
   }
 }
 
-function showDonateStrip() {
-  donateStrip.setAttribute("aria-hidden", "false");
+function setStripeCustomerId(customerId) {
+  stripeCustomerId = String(customerId || '').trim();
+  if (stripeCustomerId) {
+    localStorage.setItem(STORAGE_KEYS.stripeCustomerId, stripeCustomerId);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.stripeCustomerId);
+  }
 }
 
-function hideDonateStrip() {
-  blurFocusedElementWithin(donateStrip);
-  donateStrip.setAttribute("aria-hidden", "true");
+function setSelectedSavedMethodId(paymentMethodId) {
+  selectedSavedMethodId = String(paymentMethodId || '').trim();
+  if (selectedSavedMethodId) {
+    localStorage.setItem(STORAGE_KEYS.activeSavedMethodId, selectedSavedMethodId);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.activeSavedMethodId);
+  }
 }
 
-function updateDonateButtonState() {
-  // Payments now always use Stripe Elements, so Donar never depends on wallet cards.
-  donateBtn.disabled = false;
-  donateBtn.setAttribute('aria-disabled', 'false');
-  donateBtn.removeAttribute('title');
+function clearSavedMethodState() {
+  savedPaymentMethods = [];
+  setSelectedSavedMethodId('');
+
+  if (useSavedMethodToggle) {
+    useSavedMethodToggle.checked = false;
+  }
+
+  if (savedPaymentMethodSelect) {
+    savedPaymentMethodSelect.innerHTML = '';
+    savedPaymentMethodSelect.disabled = true;
+  }
+
+  if (savedMethodsSection) {
+    savedMethodsSection.hidden = true;
+  }
 }
 
-function showWalletStrip() {
-  walletStrip.setAttribute("aria-hidden", "false");
-}
-
-function hideWalletStrip() {
-  blurFocusedElementWithin(walletStrip);
-  walletStrip.setAttribute("aria-hidden", "true");
-}
-
-function showCardModal() {
-  cardModal.setAttribute("aria-hidden", "false");
-  renderCardList();
-}
-
-function hideCardModal() {
-  blurFocusedElementWithin(cardModal);
-  cardModal.setAttribute("aria-hidden", "true");
-}
-
-function showCardFormModal() {
-  cardFormModal.setAttribute("aria-hidden", "false");
-}
-
-function hideCardFormModal() {
-  blurFocusedElementWithin(cardFormModal);
-  cardFormModal.setAttribute("aria-hidden", "true");
-  cardForm.reset();
-}
-
-function renderCardList() {
-  updateDonateButtonState();
-
-  if (savedCards.length === 0) {
-    cardList.innerHTML = '<p class="card-list__empty">No tienes tarjetas registradas</p>';
+function updateImage() {
+  if (!images.length || !carouselImage) {
     return;
   }
 
-  cardList.innerHTML = savedCards.map((card, index) => `
-    <div class="card-item ${index === activeCardIndex ? 'active' : ''}">
-      <div class="card-item__info">
-        <p class="card-item__name">${card.name}</p>
-        <p class="card-item__number">•••• •••• •••• ${getCardLast4(card)}</p>
-        <p class="card-item__expiry">Vence: ${card.expiry}</p>
-      </div>
-      <div class="card-item__actions">
-        <button class="card-item__use" data-index="${index}">Usar</button>
-        <button class="card-item__delete" data-index="${index}" aria-label="Eliminar">✕</button>
-      </div>
-    </div>
-  `).join('');
-  
-  document.querySelectorAll('.card-item__use').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const index = parseInt(e.target.dataset.index);
-      setActiveCard(index);
-      hideCardModal();
-      updatePaymentModalCardUI();
-
-      if (pendingPaymentContext) {
-        hideWalletStrip();
-        openPaymentModal(pendingPaymentContext.amount, pendingPaymentContext.description);
-        pendingPaymentContext = null;
-      }
-
-      console.log('Tarjeta activa seleccionada'); // Temporarily replace showToast
-    });
-  });
-
-  document.querySelectorAll('.card-item__delete').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const index = parseInt(e.target.dataset.index);
-      savedCards.splice(index, 1);
-      localStorage.setItem('cards', JSON.stringify(savedCards));
-
-      if (activeCardIndex === index) {
-        activeCardIndex = null;
-        localStorage.removeItem('activeCardIndex');
-      }
-
-      // If we removed a card before the active index, shift the active index down
-      if (activeCardIndex !== null && index < activeCardIndex) {
-        setActiveCard(activeCardIndex - 1);
-      } else {
-        renderCardList();
-        updateActiveCardDisplay();
-      }
-    });
-  });
+  const src = images[currentIndex];
+  carouselImage.src = src;
+  carouselImage.alt = `Imagen ${currentIndex + 1} del carrusel`;
 }
 
-function formatCardLast4(value) {
-  return value.replace(/\D/g, '').slice(0, 4);
+function normalizeImageHref(href) {
+  const raw = String(href || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  const withoutHash = raw.split('#')[0];
+  const pathOnly = withoutHash.split('?')[0];
+  if (!IMAGE_FILE_PATTERN.test(pathOnly)) {
+    return '';
+  }
+
+  if (pathOnly.startsWith('http://') || pathOnly.startsWith('https://')) {
+    return pathOnly;
+  }
+
+  if (pathOnly.startsWith('/images/')) {
+    return pathOnly;
+  }
+
+  if (pathOnly.startsWith('images/')) {
+    return `/${pathOnly}`;
+  }
+
+  const clean = pathOnly.replace(/^\.\//, '');
+  if (!clean || clean.startsWith('../')) {
+    return '';
+  }
+
+  return `/images/${clean}`;
 }
 
-function formatExpiry(value) {
-  value = value.replace(/\D/g, '');
-  if (value.length >= 2) {
-    return value.slice(0, 2) + '/' + value.slice(2, 4);
+function extractImagesFromDirectoryListing(html) {
+  if (!html) {
+    return [];
   }
-  return value;
+
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const hrefs = Array.from(doc.querySelectorAll('a[href]'))
+      .map((link) => link.getAttribute('href'))
+      .map(normalizeImageHref)
+      .filter(Boolean);
+
+    return Array.from(new Set(hrefs));
+  } catch (error) {
+    return [];
+  }
 }
 
-prevBtn.addEventListener("click", () => {  if (!images.length) return; console.log('Prev button clicked');  currentIndex = (currentIndex - 1 + images.length) % images.length;
-  updateImage();
-});
-
-nextBtn.addEventListener("click", () => {  if (!images.length) return; console.log('Next button clicked');  currentIndex = (currentIndex + 1) % images.length;
-  updateImage();
-});
-
-donateBtn.addEventListener("click", () => {
-  if (donateBtn.disabled) {
-    return;
-  }
-
-  showDonateStrip();
-});
-
-closeDonate.addEventListener("click", () => {
-  hideDonateStrip();
-});
-
-donateOptions.forEach((button) => {
-  button.addEventListener("click", () => {
-    const value = Number(button.dataset.value);
-    const formattedValue = Number.isFinite(value)
-      ? value.toLocaleString('es-MX')
-      : String(button.dataset.value || '0');
-    hideDonateStrip();
-    currentDonationAmount = Number.isFinite(value) ? value : 0;
-    openPaymentModal(currentDonationAmount, `Donación de $${formattedValue}`);
-  });
-});
-
-walletBtn.addEventListener("click", () => {
-  showWalletStrip();
-});
-
-closeWallet.addEventListener("click", () => {
-  hideWalletStrip();
-  pendingPaymentContext = null;
-});
-
-walletOptions.forEach((button) => {
-  button.addEventListener("click", () => {
-    if (button.disabled || button.getAttribute('aria-disabled') === 'true') {
-      return;
-    }
-
-    const method = button.dataset.method;
-    if (method === "card") {
-      hideWalletStrip();
-      showCardModal();
-    } else {
-      hideWalletStrip();
-      pendingPaymentContext = null;
-      console.log(`Método seleccionado: ${button.textContent.trim()}`); // Temporarily replace showToast
-    }
-  });
-});
-
-closeCardModal.addEventListener("click", () => {
-  hideCardModal();
-  pendingPaymentContext = null;
-});
-
-addCardBtn.addEventListener("click", () => {
-  showCardFormModal();
-});
-
-closeCardForm.addEventListener("click", () => {
-  hideCardFormModal();
-});
-
-document.getElementById("cardNumber").addEventListener("input", (e) => {
-  e.target.value = formatCardLast4(e.target.value);
-});
-
-document.getElementById("cardExpiry").addEventListener("input", (e) => {
-  e.target.value = formatExpiry(e.target.value);
-});
-
-cardForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-
-  const cardNumberInput = document.getElementById("cardNumber");
-  const sanitizedLast4 = formatCardLast4(cardNumberInput.value);
-  if (sanitizedLast4.length !== 4) {
-    cardNumberInput.setCustomValidity('Ingresa exactamente 4 digitos.');
-    cardNumberInput.reportValidity();
-    return;
-  }
-  cardNumberInput.setCustomValidity('');
-
-  const newCard = {
-    name: document.getElementById("cardName").value,
-    last4: sanitizedLast4,
-    expiry: document.getElementById("cardExpiry").value
-  };
-  savedCards.push(newCard);
-  localStorage.setItem('cards', JSON.stringify(savedCards));
-  setActiveCard(savedCards.length - 1);
-  hideCardFormModal();
-  showCardModal();
-  console.log('Tarjeta agregada exitosamente'); // Temporarily replace showToast
-});
-
-// Payment System Functions
-function initializeStripe(publicKey) {
-  console.log('✅ initializeStripe con publicKey:', publicKey.slice(0, 12) + '...');
-  if (!stripe) {
-    stripe = Stripe(publicKey);
-    elements = stripe.elements();
-    cardElement = elements.create('card');
-    cardElement.mount('#card-element');
-    
-    cardElement.addEventListener('change', (event) => {
-      const displayError = document.getElementById('card-errors');
-      if (event.error) {
-        displayError.textContent = event.error.message;
-      } else {
-        displayError.textContent = '';
-      }
+async function loadImagesFromDirectoryListing() {
+  try {
+    const response = await fetch('/images/', {
+      headers: { Accept: 'text/html' }
     });
 
-    // Enable submit button now that stripe is ready
-    submitPayment.disabled = false;
-    const errEl = document.getElementById('card-errors');
-    if (errEl && errEl.dataset.stripeError) {
-      errEl.textContent = '';
-      delete errEl.dataset.stripeError;
+    if (!response.ok) {
+      return [];
     }
+
+    const html = await response.text();
+    return extractImagesFromDirectoryListing(html);
+  } catch (error) {
+    return [];
   }
 }
 
-function setStripeUnavailable(message) {
-  stripe = null;
-  // Show error inside the payment modal so the user lo vea
-  const errEl = document.getElementById('card-errors');
-  if (errEl) {
-    errEl.textContent = message;
-    errEl.dataset.stripeError = '1';
+function formatExpiry(method) {
+  const expMonth = Number(method.expMonth || 0);
+  const expYear = Number(method.expYear || 0);
+  if (!expMonth || !expYear) {
+    return 'N/D';
   }
-  submitPayment.disabled = true;
-  submitPayment.title = message;
-  donateBtn.disabled = true;
-  donateBtn.title = message;
-  console.error('🚫 Stripe no disponible:', message);
+  return `${String(expMonth).padStart(2, '0')}/${String(expYear).slice(-2)}`;
+}
+
+function formatSavedMethodLabel(method) {
+  const brand = String(method.brand || 'tarjeta').toUpperCase();
+  const last4 = String(method.last4 || '----');
+  return `${brand} •••• ${last4} (${formatExpiry(method)})`;
+}
+
+function usingSavedMethod() {
+  return Boolean(
+    useSavedMethodToggle &&
+      useSavedMethodToggle.checked &&
+      savedPaymentMethodSelect &&
+      savedPaymentMethodSelect.value
+  );
 }
 
 function updatePaymentModalCardUI() {
-  const activeCard = getActiveCard();
-  const payerNameInput = document.getElementById('payerName');
+  const useSaved = usingSavedMethod();
 
-  if (activeCard) {
-    savedCardLabel.textContent = `•••• •••• •••• ${getCardLast4(activeCard)}`;
-    savedCardExpiry.textContent = activeCard.expiry ? `(${activeCard.expiry})` : '';
-    savedCardSummary.hidden = false;
+  if (cardElementWrapper) {
+    cardElementWrapper.style.display = useSaved ? 'none' : 'block';
+  }
 
-    // Autofill non-sensitive payer data from the selected wallet card.
-    if (payerNameInput) {
-      payerNameInput.value = activeCard.name;
-    }
+  if (saveCardOption) {
+    saveCardOption.style.display = useSaved ? 'none' : 'flex';
+  }
 
-    if (cardElementHint) {
-      const expiryText = activeCard.expiry ? `, vence ${activeCard.expiry}` : '';
-      cardElementHint.textContent = `Tarjeta seleccionada: **** ${getCardLast4(activeCard)}${expiryText}. Stripe requiere capturar los datos en este campo por seguridad.`;
-      cardElementHint.hidden = false;
-    }
-  } else {
-    savedCardSummary.hidden = true;
+  if (saveCardForFuture) {
+    saveCardForFuture.disabled = useSaved;
+  }
 
-    if (cardElementHint) {
+  if (cardElementHint) {
+    if (useSaved) {
+      cardElementHint.textContent = '';
+      cardElementHint.hidden = true;
+    } else {
       cardElementHint.textContent = 'Ingresa los datos de la tarjeta para completar el pago seguro con Stripe.';
       cardElementHint.hidden = false;
     }
   }
+}
 
-  // Always capture payment details in Stripe Elements.
-  cardElementWrapper.style.display = 'block';
+function renderSavedMethodsUI() {
+  if (!savedMethodsSection || !savedPaymentMethodSelect || !useSavedMethodToggle) {
+    return;
+  }
+
+  if (!savedPaymentMethods.length) {
+    clearSavedMethodState();
+    updatePaymentModalCardUI();
+    return;
+  }
+
+  savedMethodsSection.hidden = false;
+
+  savedPaymentMethodSelect.innerHTML = savedPaymentMethods
+    .map((method) => `<option value="${method.id}">${formatSavedMethodLabel(method)}</option>`)
+    .join('');
+
+  const hasSelected = savedPaymentMethods.some((method) => method.id === selectedSavedMethodId);
+  if (!hasSelected) {
+    setSelectedSavedMethodId(savedPaymentMethods[0].id);
+  }
+
+  savedPaymentMethodSelect.value = selectedSavedMethodId;
+  savedPaymentMethodSelect.disabled = !useSavedMethodToggle.checked;
+
+  updatePaymentModalCardUI();
+}
+
+async function loadCarouselImages() {
+  if (!carouselImage) {
+    return;
+  }
+
+  if (USE_FUNCTIONS_API) {
+    try {
+      const response = await fetch(`${API_URL}/list-images`, {
+        headers: { Accept: 'application/json' }
+      });
+
+      const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+      const isJson = contentType.includes('application/json');
+
+      if (response.ok && isJson) {
+        const data = await response.json();
+        if (Array.isArray(data.images) && data.images.length > 0) {
+          images = data.images;
+          currentIndex = 0;
+          updateImage();
+          return;
+        }
+      }
+    } catch (error) {
+      console.info('Image list function unavailable, trying /images/ listing.');
+    }
+  }
+
+  const listedImages = await loadImagesFromDirectoryListing();
+  if (listedImages.length > 0) {
+    images = listedImages;
+    currentIndex = 0;
+    updateImage();
+    return;
+  }
+
+  const fallbackSrc = carouselImage.getAttribute('src');
+  images = fallbackSrc ? [fallbackSrc] : [];
+  currentIndex = 0;
+  updateImage();
+}
+
+async function loadPaymentConfig() {
+  const response = await fetch(`${API_URL}/config`, {
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Config endpoint HTTP ${response.status}`);
+  }
+
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    throw new Error('Config endpoint did not return JSON');
+  }
+
+  return response.json();
+}
+
+function resetWalletUI(message = '') {
+  if (!walletPaySection || !walletButtonContainer || !walletStatus) {
+    return;
+  }
+
+  if (paymentRequestButtonElement) {
+    paymentRequestButtonElement.unmount();
+    paymentRequestButtonElement = null;
+  }
+
+  paymentRequest = null;
+  walletButtonContainer.innerHTML = '';
+
+  if (message) {
+    walletPaySection.hidden = false;
+    walletStatus.textContent = message;
+  } else {
+    walletPaySection.hidden = true;
+  }
+}
+
+function showDonateStrip() {
+  if (donateStrip) {
+    donateStrip.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function hideDonateStrip() {
+  if (!donateStrip) {
+    return;
+  }
+
+  blurFocusedElementWithin(donateStrip);
+  donateStrip.setAttribute('aria-hidden', 'true');
+}
+
+function buildDonationDescription(amount) {
+  const currentImagePath = images[currentIndex] || carouselImage?.getAttribute('src') || '';
+  const currentImageName = String(currentImagePath).split('/').pop() || 'imagen';
+  const currentImageBaseName = currentImageName.replace(/\.[^/.]+$/, '');
+  const baseDescription = paymentForm?.dataset.description || `Donacion de $${amount}`;
+  return `${baseDescription} a ${currentImageBaseName}`;
+}
+
+function getPayerNameValue() {
+  return String(document.getElementById('payerName')?.value || '').trim();
+}
+
+function getPayerEmailValue() {
+  return String(document.getElementById('payerEmail')?.value || '').trim();
+}
+
+function setPayerFields(name, email) {
+  const payerNameInput = document.getElementById('payerName');
+  const payerEmailInput = document.getElementById('payerEmail');
+  const normalizedName = String(name || '').trim();
+  const normalizedEmail = String(email || '').trim();
+
+  if (normalizedName) {
+    lastPayerName = normalizedName;
+    localStorage.setItem(STORAGE_KEYS.lastPayerName, normalizedName);
+  }
+
+  if (normalizedEmail) {
+    lastEmail = normalizedEmail;
+    localStorage.setItem(STORAGE_KEYS.lastEmail, normalizedEmail);
+  }
+
+  if (payerNameInput && normalizedName && !payerNameInput.value) {
+    payerNameInput.value = normalizedName;
+  }
+
+  if (payerEmailInput && normalizedEmail && !payerEmailInput.value) {
+    payerEmailInput.value = normalizedEmail;
+  }
 }
 
 function openPaymentModal(amount, description) {
   hidePaymentConfirmationError();
-  paymentAmount.textContent = amount.toFixed(2);
+
+  // Hide saved-card controls until Stripe confirms available methods.
+  clearSavedMethodState();
+
+  if (paymentAmount) {
+    paymentAmount.textContent = amount.toFixed(2);
+  }
+
   const currencySpan = document.getElementById('paymentCurrency');
   if (currencySpan) {
     currencySpan.textContent = bankingCurrency.toUpperCase();
   }
-  paymentModal.setAttribute("aria-hidden", "false");
-  paymentForm.dataset.amount = amount;
-  paymentForm.dataset.description = description;
+
+  if (paymentModal) {
+    paymentModal.setAttribute('aria-hidden', 'false');
+  }
+
+  if (paymentForm) {
+    paymentForm.dataset.amount = String(amount);
+    paymentForm.dataset.description = description;
+  }
 
   updatePaymentModalCardUI();
 
-  // Pre-fill email from localStorage
   const payerEmailInput = document.getElementById('payerEmail');
+  const payerNameInput = document.getElementById('payerName');
+  if (payerNameInput && lastPayerName && !payerNameInput.value) {
+    payerNameInput.value = lastPayerName;
+  }
+
   if (payerEmailInput && lastEmail && !payerEmailInput.value) {
     payerEmailInput.value = lastEmail;
   }
@@ -496,35 +455,65 @@ function openPaymentModal(amount, description) {
   if (cardElement) {
     cardElement.clear();
     setTimeout(() => {
-      cardElement.focus();
+      if (cardElementWrapper && cardElementWrapper.style.display !== 'none') {
+        cardElement.focus();
+      }
     }, 0);
   }
+
+  if (USE_FUNCTIONS_API && stripeCustomerId) {
+    loadSavedPaymentMethods().catch((error) => {
+      console.warn('No se pudieron cargar tarjetas guardadas:', error.message);
+      clearSavedMethodState();
+    });
+  } else {
+    clearSavedMethodState();
+  }
+
+  setupWalletButton(amount, description).catch((error) => {
+    console.warn('Wallet Stripe no disponible:', error.message);
+    resetWalletUI();
+  });
 }
 
 function closePaymentModalFn() {
   hidePaymentConfirmationError();
-  blurFocusedElementWithin(paymentModal);
-  paymentModal.setAttribute("aria-hidden", "true");
-  paymentForm.reset();
+
+  if (paymentModal) {
+    blurFocusedElementWithin(paymentModal);
+    paymentModal.setAttribute('aria-hidden', 'true');
+  }
+
+  if (paymentForm) {
+    paymentForm.reset();
+  }
+
+  if (useSavedMethodToggle) {
+    useSavedMethodToggle.checked = false;
+  }
+
+  if (savedPaymentMethodSelect) {
+    savedPaymentMethodSelect.disabled = true;
+  }
+
+  updatePaymentModalCardUI();
 }
 
 function showVerificationModal(paymentData) {
   pendingPaymentData = paymentData;
-  
-  // Fill verification modal with data
-  document.getElementById('verifyName').textContent = paymentData.name || '-';
-  document.getElementById('verifyEmail').textContent = paymentData.email || '-';
-  document.getElementById('verifyAmount').textContent = `$${paymentData.amount.toFixed(2)} ${bankingCurrency.toUpperCase()}`;
-  document.getElementById('verifyDescription').textContent = paymentData.description || '-';
 
-  // Show card section only if using a saved card
+  const verifyName = document.getElementById('verifyName');
+  const verifyEmail = document.getElementById('verifyEmail');
+  const verifyAmount = document.getElementById('verifyAmount');
+  const verifyDescription = document.getElementById('verifyDescription');
+
+  if (verifyName) verifyName.textContent = paymentData.name || '-';
+  if (verifyEmail) verifyEmail.textContent = paymentData.email || '-';
+  if (verifyAmount) verifyAmount.textContent = `$${paymentData.amount.toFixed(2)} ${bankingCurrency.toUpperCase()}`;
+  if (verifyDescription) verifyDescription.textContent = paymentData.description || '-';
+
   const cardSection = document.getElementById('verifyCardSection');
-  if (paymentData.card) {
-    cardSection.style.display = 'block';
-    document.getElementById('verifyCardName').textContent = paymentData.card.name || '-';
-    document.getElementById('verifyCardNumber').textContent = `•••• •••• •••• ${getCardLast4(paymentData.card)}`;
-    document.getElementById('verifyCardExpiry').textContent = paymentData.card.expiry || '-';
-  } else {
+  if (cardSection) {
     cardSection.style.display = 'none';
   }
 
@@ -539,20 +528,25 @@ function showVerificationModal(paymentData) {
     cvvGroup.style.display = 'none';
   }
 
-  verificationModal.setAttribute("aria-hidden", "false");
+  if (verificationModal) {
+    verificationModal.setAttribute('aria-hidden', 'false');
+  }
 }
 
 function persistVerificationCvv() {
-  // CVV verification is not used when card data is handled only by Stripe Elements.
   return true;
 }
 
 function hideVerificationModal() {
-  blurFocusedElementWithin(verificationModal);
-  verificationModal.setAttribute("aria-hidden", "true");
+  if (verificationModal) {
+    blurFocusedElementWithin(verificationModal);
+    verificationModal.setAttribute('aria-hidden', 'true');
+  }
+
   if (verifyCardCvvInput) {
     verifyCardCvvInput.value = '';
   }
+
   pendingPaymentData = null;
 }
 
@@ -562,10 +556,10 @@ function hidePaymentConfirmationError() {
   }
 }
 
-function showPaymentConfirmationError() {
+function showPaymentConfirmationError(customMessage = '') {
   const errorTextElement = document.getElementById('paymentErrorText');
   if (errorTextElement) {
-    errorTextElement.textContent = 'Verifique sus datos de la targeta.';
+    errorTextElement.textContent = customMessage || 'Verifique sus datos de la targeta.';
   }
 
   if (paymentErrorModal) {
@@ -590,6 +584,7 @@ function clearSuccessModalTimers() {
     clearTimeout(successModalAutoCloseTimeout);
     successModalAutoCloseTimeout = null;
   }
+
   if (successModalFadeTimeout) {
     clearTimeout(successModalFadeTimeout);
     successModalFadeTimeout = null;
@@ -597,17 +592,24 @@ function clearSuccessModalTimers() {
 }
 
 function hideSuccessModal() {
+  if (!successModal) {
+    return;
+  }
+
   clearSuccessModalTimers();
   successModal.hidden = true;
   successModal.style.opacity = '1';
 }
 
 function showSuccessModal() {
+  if (!successModal) {
+    return;
+  }
+
   clearSuccessModalTimers();
   successModal.hidden = false;
   successModal.style.opacity = '1';
 
-  // Auto-hide with fade after a short delay.
   successModalAutoCloseTimeout = setTimeout(() => {
     successModal.style.opacity = '0';
     successModalFadeTimeout = setTimeout(() => {
@@ -616,135 +618,213 @@ function showSuccessModal() {
   }, 3000);
 }
 
-async function processPayment(e) {
-  e.preventDefault();
-  console.log('🔵 processPayment called');
-  
-  if (submitPayment.disabled) {
-    console.log('⏳ Payment already in progress');
+async function postJson(url, payload) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {})
+  });
+
+  const rawBody = await response.text();
+  let data = {};
+
+  if (rawBody) {
+    try {
+      data = JSON.parse(rawBody);
+    } catch (error) {
+      throw new Error(`Respuesta invalida desde ${url}`);
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error || `Error HTTP ${response.status}`);
+  }
+
+  return data;
+}
+
+function sanitizePaymentMethods(rawMethods) {
+  if (!Array.isArray(rawMethods)) {
+    return [];
+  }
+
+  return rawMethods
+    .map((method) => {
+      const id = String(method?.id || '').trim();
+      const brand = String(method?.brand || '').trim();
+      const last4 = String(method?.last4 || '').replace(/\D/g, '').slice(-4);
+      const expMonth = Number(method?.expMonth || 0);
+      const expYear = Number(method?.expYear || 0);
+
+      if (!id || !last4) {
+        return null;
+      }
+
+      return {
+        id,
+        brand,
+        last4,
+        expMonth,
+        expYear,
+        name: String(method?.name || '').trim(),
+        email: String(method?.email || '').trim().toLowerCase()
+      };
+    })
+    .filter(Boolean);
+}
+
+async function ensureStripeCustomer(email, name) {
+  if (!USE_FUNCTIONS_API) {
+    throw new Error('Funciones de Stripe no disponibles en este entorno local.');
+  }
+
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedName = String(name || '').trim();
+
+  if (!normalizedEmail) {
+    throw new Error('Ingresa un correo para guardar la tarjeta.');
+  }
+
+  const customerData = await postJson(`${API_URL}/create-customer`, {
+    customerId: stripeCustomerId || undefined,
+    email: normalizedEmail,
+    name: normalizedName
+  });
+
+  if (!customerData.customerId) {
+    throw new Error('No se pudo crear u obtener el cliente en Stripe.');
+  }
+
+  setStripeCustomerId(customerData.customerId);
+  return stripeCustomerId;
+}
+
+async function loadSavedPaymentMethods() {
+  if (!USE_FUNCTIONS_API || !stripeCustomerId) {
+    clearSavedMethodState();
     return;
   }
-  
-  const amount = parseFloat(paymentForm.dataset.amount);
-  const name = document.getElementById("payerName").value;
-  const email = document.getElementById("payerEmail").value;
-  
-  console.log('📋 Form data:', { amount, name, email });
-  
-  // Save email for next time
-  lastEmail = email;
-  localStorage.setItem('lastEmail', email);
 
-  const cardErrorsElement = document.getElementById('card-errors');
-  cardErrorsElement.textContent = '';
-  hidePaymentConfirmationError();
-  
-  try {
-    if (!stripe || !cardElement) {
-      console.error('❌ stripe no inicializado');
-      cardErrorsElement.textContent = 'El sistema de pagos no está disponible. Revisa la configuración de las claves de Stripe en Netlify.';
+  const data = await postJson(`${API_URL}/list-payment-methods`, {
+    customerId: stripeCustomerId
+  });
+
+  savedPaymentMethods = sanitizePaymentMethods(data.paymentMethods || []);
+
+  if (!savedPaymentMethods.length) {
+    clearSavedMethodState();
+    return;
+  }
+
+  const defaultFromServer = String(data.defaultPaymentMethodId || '').trim();
+  const hasSelected = savedPaymentMethods.some((method) => method.id === selectedSavedMethodId);
+  if (!hasSelected) {
+    if (defaultFromServer && savedPaymentMethods.some((method) => method.id === defaultFromServer)) {
+      setSelectedSavedMethodId(defaultFromServer);
+    } else {
+      setSelectedSavedMethodId(savedPaymentMethods[0].id);
+    }
+  }
+
+  renderSavedMethodsUI();
+}
+
+function initializeStripe(publicKey) {
+  if (stripe || typeof Stripe !== 'function') {
+    return;
+  }
+
+  stripe = Stripe(publicKey);
+  elements = stripe.elements();
+  cardElement = elements.create('card', {
+    disableLink: true
+  });
+  cardElement.mount('#card-element');
+
+  cardElement.addEventListener('change', (event) => {
+    const displayError = document.getElementById('card-errors');
+    if (!displayError) {
       return;
     }
 
-    const activeCard = getActiveCard();
-    console.log('💳 activeCard:', activeCard ? `****${getCardLast4(activeCard)}` : 'ninguna (usando Stripe Element)');
-    console.log('🔧 stripe inicializado:', !!stripe, '| cardElement:', !!cardElement);
-
-    const currentImagePath = images[currentIndex] || carouselImage.getAttribute('src') || '';
-    const currentImageName = String(currentImagePath).split('/').pop() || 'imagen';
-    const currentImageBaseName = currentImageName.replace(/\.[^/.]+$/, '');
-    const baseDescription = paymentForm.dataset.description || `Donacion de $${amount}`;
-    const donationDescription = `${baseDescription} a ${currentImageBaseName}`;
-
-    const paymentPayload = {
-      amount: amount,
-      currency: bankingCurrency,
-      description: donationDescription,
-      type: 'donation',
-      name,
-      email
-    };
-
-    console.log('✅ paymentPayload listo:', {
-      amount: paymentPayload.amount,
-      currency: paymentPayload.currency,
-      description: paymentPayload.description,
-      type: paymentPayload.type,
-      hasCardReference: Boolean(activeCard)
-    });
-    console.log('🔒 enableCardVerification:', enableCardVerification);
-
-    // If card verification is enabled, show verification modal instead of processing immediately
-    if (enableCardVerification) {
-      const verificationData = {
-        name: name,
-        email: email,
-        amount: amount,
-        description: donationDescription,
-        cardIndex: activeCard ? activeCardIndex : null,
-        card: activeCard ? {
-          name: activeCard.name,
-          last4: getCardLast4(activeCard),
-          expiry: activeCard.expiry
-        } : null,
-        payload: paymentPayload
-      };
-      
-      showVerificationModal(verificationData);
-      return;
+    if (event.error) {
+      displayError.textContent = event.error.message;
+    } else {
+      displayError.textContent = '';
     }
+  });
 
-    // Otherwise, process payment directly
-    await executePayment(paymentPayload);
-    
-  } catch (err) {
-    console.error('❌ Error en processPayment:', err);
-    const cardErrorsElement = document.getElementById('card-errors');
-    cardErrorsElement.textContent = 'Error: ' + err.message;
-  } finally {
+  if (submitPayment) {
     submitPayment.disabled = false;
-    submitPayment.textContent = "Pagar Ahora";
+    submitPayment.removeAttribute('title');
+  }
+
+  if (donateBtn) {
+    donateBtn.disabled = false;
+    donateBtn.removeAttribute('title');
+  }
+
+  const errEl = document.getElementById('card-errors');
+  if (errEl && errEl.dataset.stripeError) {
+    errEl.textContent = '';
+    delete errEl.dataset.stripeError;
+  }
+
+  if (USE_FUNCTIONS_API && stripeCustomerId) {
+    loadSavedPaymentMethods().catch((error) => {
+      console.warn('No se pudieron cargar tarjetas guardadas:', error.message);
+      clearSavedMethodState();
+    });
   }
 }
 
-async function executePayment(paymentPayload) {
-  const cardErrorsElement = document.getElementById('card-errors');
-  submitPayment.disabled = true;
-  submitPayment.textContent = "Procesando...";
-  
-  try {
-    // Create a PaymentIntent server-side, then confirm with Stripe.js.
-    console.log('📤 Solicitando PaymentIntent:', {
-      url: `${API_URL}/create-payment-intent`,
-      payload: {
-        amount: paymentPayload.amount,
-        currency: paymentPayload.currency,
-        description: paymentPayload.description,
-        type: paymentPayload.type
-      }
+function setStripeUnavailable(message) {
+  stripe = null;
+  cardElement = null;
+  resetWalletUI();
+
+  const errEl = document.getElementById('card-errors');
+  if (errEl) {
+    errEl.textContent = message;
+    errEl.dataset.stripeError = '1';
+  }
+
+  if (submitPayment) {
+    submitPayment.disabled = true;
+    submitPayment.title = message;
+  }
+
+  if (donateBtn) {
+    donateBtn.disabled = false;
+    donateBtn.removeAttribute('title');
+  }
+
+  console.warn('Stripe no disponible:', message);
+}
+
+async function createAndConfirmPaymentIntent(paymentPayload) {
+  const intentData = await postJson(`${API_URL}/create-payment-intent`, {
+    amount: paymentPayload.amount,
+    currency: paymentPayload.currency,
+    description: paymentPayload.description,
+    type: paymentPayload.type,
+    customerId: paymentPayload.customerId || undefined,
+    receiptEmail: paymentPayload.email || undefined,
+    savePaymentMethod: paymentPayload.savePaymentMethod === true
+  });
+
+  if (!intentData.clientSecret) {
+    throw new Error('No se recibio clientSecret de Stripe.');
+  }
+
+  let confirmResult;
+
+  if (paymentPayload.paymentMethodId) {
+    confirmResult = await stripe.confirmCardPayment(intentData.clientSecret, {
+      payment_method: paymentPayload.paymentMethodId
     });
-
-    const intentResponse = await fetch(`${API_URL}/create-payment-intent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount: paymentPayload.amount,
-        currency: paymentPayload.currency,
-        description: paymentPayload.description,
-        type: paymentPayload.type
-      })
-    });
-
-    const intentData = await intentResponse.json();
-    if (!intentResponse.ok) {
-      throw new Error(intentData.error || 'No se pudo inicializar el pago seguro.');
-    }
-
-    if (!intentData.clientSecret) {
-      throw new Error('No se recibio clientSecret de Stripe.');
-    }
-
-    const confirmResult = await stripe.confirmCardPayment(intentData.clientSecret, {
+  } else {
+    confirmResult = await stripe.confirmCardPayment(intentData.clientSecret, {
       payment_method: {
         card: cardElement,
         billing_details: {
@@ -753,111 +833,401 @@ async function executePayment(paymentPayload) {
         }
       }
     });
+  }
 
-    if (confirmResult.error) {
-      cardErrorsElement.textContent = confirmResult.error.message || 'Error al confirmar el pago.';
-      showPaymentConfirmationError();
-      return;
+  if (confirmResult.error) {
+    throw new Error(confirmResult.error.message || 'Error al confirmar el pago.');
+  }
+
+  const paymentIntent = confirmResult.paymentIntent;
+  if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+    throw new Error(`Estado de pago no completado: ${paymentIntent ? paymentIntent.status : 'desconocido'}`);
+  }
+
+  return paymentIntent;
+}
+
+async function postProcessSuccessfulPayment(paymentPayload, paymentIntent) {
+  fetch(`${API_URL}/process-payment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      paymentIntentId: paymentIntent.id,
+      amount: paymentPayload.amount,
+      currency: paymentPayload.currency,
+      description: paymentPayload.description,
+      type: paymentPayload.type
+    })
+  }).catch((postProcessError) => {
+    console.warn('No se pudo notificar post-procesamiento:', postProcessError);
+  });
+
+  if (paymentPayload.savePaymentMethod && paymentPayload.customerId) {
+    try {
+      await loadSavedPaymentMethods();
+    } catch (error) {
+      console.warn('No se pudo refrescar la lista de tarjetas guardadas:', error.message);
     }
+  }
 
-    const paymentIntent = confirmResult.paymentIntent;
-    if (!paymentIntent || paymentIntent.status !== 'succeeded') {
-      throw new Error(`Estado de pago no completado: ${paymentIntent ? paymentIntent.status : 'desconocido'}`);
+  closePaymentModalFn();
+  hideVerificationModal();
+  hidePaymentConfirmationError();
+
+  showSuccessModal();
+  confetti({
+    particleCount: 100,
+    spread: 70,
+    origin: { y: 0.6 }
+  });
+}
+
+async function setupWalletButton(amount, description) {
+  if (!walletPaySection || !walletButtonContainer || !walletStatus) {
+    return;
+  }
+
+  if (!USE_FUNCTIONS_API || !stripe || !elements || !Number.isFinite(amount) || amount <= 0) {
+    resetWalletUI();
+    return;
+  }
+
+  resetWalletUI('Comprobando wallet...');
+
+  const amountInCents = Math.round(amount * 100);
+  if (amountInCents <= 0) {
+    resetWalletUI();
+    return;
+  }
+
+  paymentRequest = stripe.paymentRequest({
+    country: stripeCountry,
+    currency: bankingCurrency,
+    total: {
+      label: description,
+      amount: amountInCents
+    },
+    requestPayerName: true,
+    requestPayerEmail: true
+  });
+
+  const canMakePayment = await paymentRequest.canMakePayment();
+  if (!canMakePayment) {
+    resetWalletUI();
+    return;
+  }
+
+  walletPaySection.hidden = false;
+  walletStatus.textContent = 'Paga con Apple Pay o Google Pay.';
+
+  paymentRequestButtonElement = elements.create('paymentRequestButton', {
+    paymentRequest,
+    style: {
+      paymentRequestButton: {
+        type: 'default',
+        theme: 'dark',
+        height: '44px'
+      }
     }
+  });
 
-    // Optional post-processing (e.g., payout/status bookkeeping) without blocking checkout success.
-    fetch(`${API_URL}/process-payment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        paymentIntentId: paymentIntent.id,
-        amount: paymentPayload.amount,
-        currency: paymentPayload.currency,
-        description: paymentPayload.description,
-        type: paymentPayload.type
-      })
-    }).catch((postProcessError) => {
-      console.warn('No se pudo notificar post-procesamiento:', postProcessError);
-    });
+  paymentRequestButtonElement.mount('#wallet-button');
 
-    closePaymentModalFn();
-    hideVerificationModal();
-    hidePaymentConfirmationError();
+  paymentRequest.on('paymentmethod', async (event) => {
+    const cardErrorsElement = document.getElementById('card-errors');
 
-    // Show success modal with confetti
-    showSuccessModal();
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-  } catch (err) {
-    console.log('Payment error:', err);
-    cardErrorsElement.textContent = 'Error: ' + err.message;
-    showPaymentConfirmationError();
+    try {
+      const amountValue = Number.parseFloat(paymentForm?.dataset.amount || String(amount));
+      const walletDescription = buildDonationDescription(amountValue);
+      const resolvedName = String(event.payerName || getPayerNameValue() || 'Donante').trim();
+      const resolvedEmail = String(event.payerEmail || getPayerEmailValue() || '').trim();
+
+      setPayerFields(event.payerName, event.payerEmail);
+
+      let customerId = '';
+      const wantsSaveCard = Boolean(saveCardForFuture && saveCardForFuture.checked);
+      if (wantsSaveCard && resolvedEmail) {
+        customerId = await ensureStripeCustomer(resolvedEmail, resolvedName);
+      }
+
+      const paymentPayload = {
+        amount: amountValue,
+        currency: bankingCurrency,
+        description: walletDescription,
+        type: 'donation',
+        name: resolvedName,
+        email: resolvedEmail,
+        paymentMethodId: event.paymentMethod.id,
+        customerId,
+        savePaymentMethod: Boolean(customerId && wantsSaveCard)
+      };
+
+      const paymentIntent = await createAndConfirmPaymentIntent(paymentPayload);
+      event.complete('success');
+
+      await postProcessSuccessfulPayment(paymentPayload, paymentIntent);
+    } catch (error) {
+      event.complete('fail');
+      if (cardErrorsElement) {
+        cardErrorsElement.textContent = `Error: ${error.message}`;
+      }
+      showPaymentConfirmationError(error.message);
+    }
+  });
+}
+
+async function executePayment(paymentPayload) {
+  const cardErrorsElement = document.getElementById('card-errors');
+
+  if (!submitPayment) {
+    return;
+  }
+
+  submitPayment.disabled = true;
+  submitPayment.textContent = 'Procesando...';
+
+  try {
+    const paymentIntent = await createAndConfirmPaymentIntent(paymentPayload);
+    await postProcessSuccessfulPayment(paymentPayload, paymentIntent);
+  } catch (error) {
+    if (cardErrorsElement) {
+      cardErrorsElement.textContent = `Error: ${error.message}`;
+    }
+    showPaymentConfirmationError(error.message);
   } finally {
     submitPayment.disabled = false;
-    submitPayment.textContent = "Pagar Ahora";
+    submitPayment.textContent = 'Pagar Ahora';
   }
 }
 
-// Payment Modal Event Listeners
-closePaymentModal.addEventListener("click", closePaymentModalFn);
-changeSavedCardBtn.addEventListener("click", () => {
-  const amount = parseFloat(paymentForm.dataset.amount || '0');
-  const description = paymentForm.dataset.description || '';
+async function processPayment(e) {
+  e.preventDefault();
 
-  pendingPaymentContext = {
-    amount,
-    description
-  };
+  if (!paymentForm || !submitPayment || submitPayment.disabled) {
+    return;
+  }
 
-  closePaymentModalFn();
-  showWalletStrip();
-});
-paymentForm.addEventListener("submit", processPayment);
+  const amount = Number.parseFloat(paymentForm.dataset.amount || '0');
+  const name = getPayerNameValue();
+  const email = getPayerEmailValue();
+  const cardErrorsElement = document.getElementById('card-errors');
 
-// Verification Modal Event Listeners
-closeVerificationModal.addEventListener("click", hideVerificationModal);
+  if (cardErrorsElement) {
+    cardErrorsElement.textContent = '';
+  }
 
-cancelVerificationBtn.addEventListener("click", () => {
-  hideVerificationModal();
-  // Modal de pago sigue abierto
-});
+  hidePaymentConfirmationError();
 
-confirmVerificationBtn.addEventListener("click", async () => {
-  if (pendingPaymentData && pendingPaymentData.payload) {
-    if (!persistVerificationCvv()) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    if (cardErrorsElement) {
+      cardErrorsElement.textContent = 'Monto invalido.';
+    }
+    return;
+  }
+
+  lastPayerName = name;
+  localStorage.setItem(STORAGE_KEYS.lastPayerName, name);
+
+  lastEmail = email;
+  localStorage.setItem(STORAGE_KEYS.lastEmail, email);
+
+  try {
+    if (!stripe) {
+      throw new Error('El sistema de pagos no esta disponible. Revisa la configuracion de Stripe.');
+    }
+
+    const useSaved = usingSavedMethod();
+    const description = buildDonationDescription(amount);
+
+    let paymentMethodId = '';
+    let customerId = '';
+    let savePaymentMethod = false;
+
+    if (useSaved) {
+      if (!savedPaymentMethodSelect || !savedPaymentMethodSelect.value || !stripeCustomerId) {
+        throw new Error('Selecciona una tarjeta guardada valida.');
+      }
+
+      paymentMethodId = savedPaymentMethodSelect.value;
+      customerId = stripeCustomerId;
+      setSelectedSavedMethodId(paymentMethodId);
+    } else {
+      if (!cardElement) {
+        throw new Error('No se pudo inicializar el formulario seguro de tarjeta.');
+      }
+
+      const wantsSaveCard = Boolean(saveCardForFuture && saveCardForFuture.checked);
+      if (wantsSaveCard) {
+        customerId = await ensureStripeCustomer(email, name);
+        savePaymentMethod = Boolean(customerId);
+      }
+    }
+
+    const paymentPayload = {
+      amount,
+      currency: bankingCurrency,
+      description,
+      type: 'donation',
+      name,
+      email,
+      paymentMethodId,
+      customerId,
+      savePaymentMethod
+    };
+
+    if (enableCardVerification) {
+      showVerificationModal({
+        name,
+        email,
+        amount,
+        description,
+        card: null,
+        payload: paymentPayload
+      });
       return;
     }
-    const payload = pendingPaymentData.payload; // save before hideVerificationModal nullifies it
+
+    await executePayment(paymentPayload);
+  } catch (error) {
+    if (cardErrorsElement) {
+      cardErrorsElement.textContent = `Error: ${error.message}`;
+    }
+    showPaymentConfirmationError(error.message);
+  }
+}
+
+if (prevBtn) {
+  prevBtn.addEventListener('click', () => {
+    if (!images.length) {
+      return;
+    }
+
+    currentIndex = (currentIndex - 1 + images.length) % images.length;
+    updateImage();
+  });
+}
+
+if (nextBtn) {
+  nextBtn.addEventListener('click', () => {
+    if (!images.length) {
+      return;
+    }
+
+    currentIndex = (currentIndex + 1) % images.length;
+    updateImage();
+  });
+}
+
+if (donateBtn) {
+  donateBtn.addEventListener('click', () => {
+    if (donateBtn.disabled) {
+      return;
+    }
+
+    showDonateStrip();
+  });
+}
+
+if (closeDonate) {
+  closeDonate.addEventListener('click', () => {
+    hideDonateStrip();
+  });
+}
+
+if (donateOptions.length) {
+  donateOptions.forEach((button) => {
+    button.addEventListener('click', () => {
+      const value = Number(button.dataset.value);
+      const formattedValue = Number.isFinite(value)
+        ? value.toLocaleString('es-MX')
+        : String(button.dataset.value || '0');
+
+      hideDonateStrip();
+      currentDonationAmount = Number.isFinite(value) ? value : 0;
+      openPaymentModal(currentDonationAmount, `Donacion de $${formattedValue}`);
+    });
+  });
+}
+
+if (useSavedMethodToggle) {
+  useSavedMethodToggle.addEventListener('change', () => {
+    if (savedPaymentMethodSelect) {
+      savedPaymentMethodSelect.disabled = !useSavedMethodToggle.checked;
+    }
+    updatePaymentModalCardUI();
+  });
+}
+
+if (savedPaymentMethodSelect) {
+  savedPaymentMethodSelect.addEventListener('change', () => {
+    setSelectedSavedMethodId(savedPaymentMethodSelect.value);
+    updatePaymentModalCardUI();
+  });
+}
+
+if (closePaymentModal) {
+  closePaymentModal.addEventListener('click', closePaymentModalFn);
+}
+
+if (paymentForm) {
+  paymentForm.addEventListener('submit', processPayment);
+}
+
+const payerNameInput = document.getElementById('payerName');
+if (payerNameInput) {
+  payerNameInput.addEventListener('input', () => {
+    const nameValue = String(payerNameInput.value || '').trim();
+    lastPayerName = nameValue;
+    localStorage.setItem(STORAGE_KEYS.lastPayerName, nameValue);
+  });
+}
+
+if (closeVerificationModal) {
+  closeVerificationModal.addEventListener('click', hideVerificationModal);
+}
+
+if (cancelVerificationBtn) {
+  cancelVerificationBtn.addEventListener('click', () => {
     hideVerificationModal();
-    await executePayment(payload);
-  }
-});
+  });
+}
 
-// Success Modal Event Listener
-closeSuccessModal.addEventListener("click", () => {
-  hideSuccessModal();
-});
+if (confirmVerificationBtn) {
+  confirmVerificationBtn.addEventListener('click', async () => {
+    if (pendingPaymentData && pendingPaymentData.payload) {
+      if (!persistVerificationCvv()) {
+        return;
+      }
 
-successModal.addEventListener("click", (event) => {
-  // Close only when clicking the dark backdrop, not content.
-  if (event.target === successModal) {
-    hideSuccessModal();
-  }
-});
+      const payload = pendingPaymentData.payload;
+      hideVerificationModal();
+      await executePayment(payload);
+    }
+  });
+}
+
+if (closeSuccessModal) {
+  closeSuccessModal.addEventListener('click', hideSuccessModal);
+}
+
+if (successModal) {
+  successModal.addEventListener('click', (event) => {
+    if (event.target === successModal) {
+      hideSuccessModal();
+    }
+  });
+}
 
 if (closePaymentErrorModal) {
-  closePaymentErrorModal.addEventListener("click", hidePaymentConfirmationError);
+  closePaymentErrorModal.addEventListener('click', hidePaymentConfirmationError);
 }
 
 if (dismissPaymentErrorModal) {
-  dismissPaymentErrorModal.addEventListener("click", hidePaymentConfirmationError);
+  dismissPaymentErrorModal.addEventListener('click', hidePaymentConfirmationError);
 }
 
 if (paymentErrorModal) {
-  paymentErrorModal.addEventListener("click", (event) => {
+  paymentErrorModal.addEventListener('click', (event) => {
     if (event.target === paymentErrorModal) {
       hidePaymentConfirmationError();
     }
@@ -865,42 +1235,47 @@ if (paymentErrorModal) {
 }
 
 if (watermarkTrigger) {
-  watermarkTrigger.addEventListener("mouseenter", showWatermarkInfoModal);
-  watermarkTrigger.addEventListener("click", showWatermarkInfoModal);
-  watermarkTrigger.addEventListener("touchstart", (event) => {
-    event.preventDefault();
-    showWatermarkInfoModal();
-  }, { passive: false });
+  watermarkTrigger.addEventListener('mouseenter', showWatermarkInfoModal);
+  watermarkTrigger.addEventListener('click', showWatermarkInfoModal);
+  watermarkTrigger.addEventListener(
+    'touchstart',
+    (event) => {
+      event.preventDefault();
+      showWatermarkInfoModal();
+    },
+    { passive: false }
+  );
 }
 
 if (closeWatermarkInfoModal) {
-  closeWatermarkInfoModal.addEventListener("click", hideWatermarkInfoModal);
+  closeWatermarkInfoModal.addEventListener('click', hideWatermarkInfoModal);
 }
 
 if (watermarkInfoModal) {
-  watermarkInfoModal.addEventListener("click", (event) => {
+  watermarkInfoModal.addEventListener('click', (event) => {
     if (event.target === watermarkInfoModal) {
       hideWatermarkInfoModal();
     }
   });
 }
 
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !successModal.hidden) {
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && successModal && !successModal.hidden) {
     hideSuccessModal();
   }
-  if (event.key === "Escape" && paymentErrorModal && !paymentErrorModal.hidden) {
+
+  if (event.key === 'Escape' && paymentErrorModal && !paymentErrorModal.hidden) {
     hidePaymentConfirmationError();
   }
-  if (event.key === "Escape" && watermarkInfoModal && !watermarkInfoModal.hidden) {
+
+  if (event.key === 'Escape' && watermarkInfoModal && !watermarkInfoModal.hidden) {
     hideWatermarkInfoModal();
   }
 });
 
-window.addEventListener("load", async () => {
+window.addEventListener('load', async () => {
   await loadCarouselImages();
-  updateActiveCardDisplay();
-  updateDonateButtonState();
+  renderSavedMethodsUI();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker
@@ -912,36 +1287,39 @@ window.addEventListener("load", async () => {
         console.warn('No se pudo registrar el service worker:', err);
       });
   }
-  
-  // Load config and initialize Stripe
-  fetch(`${API_URL}/config`)
-  .then(r => r.json())
-  .then(data => {
-    console.log('⚙️ Config recibida:', { publicKey: data.publicKey ? '✅' : '❌', enableCardVerification: data.enableCardVerification });
+
+  if (!USE_FUNCTIONS_API) {
+    setStripeUnavailable('Modo local detectado: las funciones de pago requieren Netlify Dev o despliegue en Netlify.');
+    return;
+  }
+
+  try {
+    const data = await loadPaymentConfig();
 
     if (data.error) {
-      console.error('❌ Error de configuración:', data.error);
-      setStripeUnavailable('Sistema de pagos no disponible: ' + data.error);
+      setStripeUnavailable(`Sistema de pagos no disponible: ${data.error}`);
       return;
     }
 
     if (data.publicKey) {
       initializeStripe(data.publicKey);
     } else {
-      console.error('❌ No se recibió publicKey');
-      setStripeUnavailable('Sistema de pagos no disponible: clave pública no encontrada.');
+      setStripeUnavailable('Sistema de pagos no disponible: clave publica no encontrada.');
     }
 
     if (data.enableCardVerification !== undefined) {
-      enableCardVerification = data.enableCardVerification;
+      enableCardVerification = Boolean(data.enableCardVerification);
     }
+
     if (data.bankingCurrency) {
-      bankingCurrency = data.bankingCurrency.toLowerCase();
-      console.log('💱 Moneda de pago:', bankingCurrency.toUpperCase());
+      bankingCurrency = String(data.bankingCurrency).toLowerCase();
     }
-  })
-  .catch(err => {
-    console.error('❌ Error cargando configuración:', err);
+
+    if (data.stripeCountry) {
+      stripeCountry = String(data.stripeCountry).toUpperCase();
+    }
+  } catch (err) {
+    console.warn('Error cargando configuracion:', err);
     setStripeUnavailable('No se pudo conectar con el servidor de pagos.');
-  });
+  }
 });

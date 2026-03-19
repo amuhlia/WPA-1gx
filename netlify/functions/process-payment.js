@@ -81,6 +81,7 @@ exports.handler = async (event, context) => {
     const chargeId = typeof latestCharge === 'string' ? latestCharge : latestCharge?.id;
     const chargeAmount = paymentIntent.amount_received || paymentIntent.amount;
     const chargeCurrency = paymentIntent.currency || (data.currency || 'usd').toLowerCase();
+    const paymentDescription = String(data.description || '').trim();
 
     let payoutStatus = 'automatic';
 
@@ -92,7 +93,7 @@ exports.handler = async (event, context) => {
         const payoutParams = {
           amount: chargeAmount,
           currency: chargeCurrency,
-          description: `Payout for ${data.description || 'Donation'}`,
+          description: paymentDescription || 'Donation',
           metadata: {
             charge_id: chargeId || '',
             payment_intent_id: paymentIntent.id

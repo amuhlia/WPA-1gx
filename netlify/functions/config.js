@@ -26,7 +26,8 @@ exports.handler = async (event) => {
     body: JSON.stringify({
       publicKey,
       enableCardVerification: process.env.ENABLE_CARD_VERIFICATION === 'true',
-      bankingCurrency: process.env.BANKING_CURRENCY || 'MXN'
+      bankingCurrency: process.env.BANKING_CURRENCY || 'MXN',
+      stripeCountry: process.env.STRIPE_COUNTRY || 'MX'
     })
   };
 };
