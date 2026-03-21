@@ -34,6 +34,8 @@ let selectedSavedMethodId = String(localStorage.getItem(STORAGE_KEYS.activeSaved
 let savedPaymentMethods = [];
 let isCardElementComplete = false;
 let isSubmittingPayment = false;
+let transferReportDays = 7;
+let isTransferReportLoading = false;
 
 const carouselImage = document.getElementById('carouselImage');
 const prevBtn = document.getElementById('prevBtn');
@@ -42,6 +44,16 @@ const donateBtn = document.getElementById('donateBtn');
 const donateStrip = document.getElementById('donateStrip');
 const closeDonate = document.getElementById('closeDonate');
 const donateOptions = document.querySelectorAll('.donate-option');
+const transferReportBtn = document.getElementById('transferReportBtn');
+const transferReportStrip = document.getElementById('transferReportStrip');
+const closeTransferReport = document.getElementById('closeTransferReport');
+const transferReportStatus = document.getElementById('transferReportStatus');
+const transferReportBody = document.getElementById('transferReportBody');
+const transferReportFilters = document.querySelectorAll('.report-filter');
+const refreshTransferReport = document.getElementById('refreshTransferReport');
+const kpiTransferTotal = document.getElementById('kpiTransferTotal');
+const kpiTransferCount = document.getElementById('kpiTransferCount');
+const kpiTransferPending = document.getElementById('kpiTransferPending');
 const welcomeIntro = document.getElementById('welcomeIntro');
 const skipWelcomeIntro = document.getElementById('skipWelcomeIntro');
 
@@ -478,6 +490,171 @@ function hideDonateStrip() {
 
   blurFocusedElementWithin(donateStrip);
   donateStrip.setAttribute('aria-hidden', 'true');
+}
+
+function formatMoney(value, currency = bankingCurrency) {
+  const amount = Number(value || 0);
+  const normalizedCurrency = String(currency || bankingCurrency || 'usd').toUpperCase();
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: normalizedCurrency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount);
+}
+
+function formatDateTimeFromUnix(timestamp) {
+  const numeric = Number(timestamp || 0);
+  if (!numeric) {
+    return 'N/D';
+  }
+
+  return new Intl.DateTimeFormat('es-MX', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(new Date(numeric * 1000));
+}
+
+function setTransferReportLoadingState(loading, statusMessage = '') {
+  isTransferReportLoading = Boolean(loading);
+
+  if (transferReportStatus) {
+    transferReportStatus.textContent = statusMessage;
+  }
+
+  if (refreshTransferReport) {
+    refreshTransferReport.disabled = isTransferReportLoading;
+  }
+
+  if (transferReportFilters.length) {
+    transferReportFilters.forEach((filterButton) => {
+      filterButton.disabled = isTransferReportLoading;
+    });
+  }
+}
+
+function renderTransferReportItems(items) {
+  if (!transferReportBody) {
+    return;
+  }
+
+  const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) {
+    transferReportBody.innerHTML = '<tr><td colspan="5">Sin transferencias para este periodo.</td></tr>';
+    return;
+  }
+
+  transferReportBody.innerHTML = rows
+    .map((item) => {
+      const description = String(item.description || '').trim() || 'Sin descripcion';
+      const destination = String(item.destination || '').trim() || 'N/D';
+      const amountText = formatMoney(item.amount, item.currency);
+      const statusText = String(item.status || 'pending');
+      const createdText = formatDateTimeFromUnix(item.created);
+
+      return `
+        <tr>
+          <td>${createdText}</td>
+          <td>${description}</td>
+          <td>${destination}</td>
+          <td>${amountText}</td>
+          <td>${statusText}</td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+function applyTransferReportKpis(reportData) {
+  const totals = reportData?.totals || {};
+
+  if (kpiTransferTotal) {
+    kpiTransferTotal.textContent = formatMoney(totals.totalAmount || 0, totals.currency || bankingCurrency);
+  }
+
+  if (kpiTransferCount) {
+    kpiTransferCount.textContent = String(totals.count || 0);
+  }
+
+  if (kpiTransferPending) {
+    kpiTransferPending.textContent = String(totals.pending || 0);
+  }
+}
+
+function applyActiveTransferReportFilter(days) {
+  transferReportDays = Number(days) || 7;
+
+  if (!transferReportFilters.length) {
+    return;
+  }
+
+  transferReportFilters.forEach((button) => {
+    const buttonDays = Number(button.dataset.days || 0);
+    button.classList.toggle('active', buttonDays === transferReportDays);
+  });
+}
+
+async function loadTransferReport(days = transferReportDays) {
+  applyActiveTransferReportFilter(days);
+
+  if (!USE_FUNCTIONS_API) {
+    setTransferReportLoadingState(false, 'Reporte disponible en Netlify Dev o produccion.');
+    renderTransferReportItems([]);
+    applyTransferReportKpis({ totals: { totalAmount: 0, count: 0, pending: 0, currency: bankingCurrency } });
+    return;
+  }
+
+  setTransferReportLoadingState(true, 'Cargando transferencias...');
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const from = now - transferReportDays * 24 * 60 * 60;
+    const query = new URLSearchParams({
+      limit: '25',
+      from: String(from),
+      to: String(now)
+    });
+
+    const response = await fetch(`${API_URL}/list-transfers?${query.toString()}`, {
+      headers: { Accept: 'application/json' }
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Error HTTP ${response.status}`);
+    }
+
+    renderTransferReportItems(data.items || []);
+    applyTransferReportKpis(data);
+
+    const itemCount = Array.isArray(data.items) ? data.items.length : 0;
+    setTransferReportLoadingState(false, `Mostrando ${itemCount} transferencias.`);
+  } catch (error) {
+    renderTransferReportItems([]);
+    applyTransferReportKpis({ totals: { totalAmount: 0, count: 0, pending: 0, currency: bankingCurrency } });
+    setTransferReportLoadingState(false, `No se pudo cargar el reporte: ${error.message}`);
+  }
+}
+
+function showTransferReport() {
+  if (!transferReportStrip) {
+    return;
+  }
+
+  hideDonateStrip();
+  transferReportStrip.setAttribute('aria-hidden', 'false');
+  loadTransferReport(transferReportDays).catch((error) => {
+    setTransferReportLoadingState(false, `No se pudo cargar el reporte: ${error.message}`);
+  });
+}
+
+function hideTransferReport() {
+  if (!transferReportStrip) {
+    return;
+  }
+
+  blurFocusedElementWithin(transferReportStrip);
+  transferReportStrip.setAttribute('aria-hidden', 'true');
 }
 
 function buildDonationDescription(amount) {
@@ -1237,7 +1414,39 @@ if (donateBtn) {
       return;
     }
 
+    hideTransferReport();
     showDonateStrip();
+  });
+}
+
+if (transferReportBtn) {
+  transferReportBtn.addEventListener('click', () => {
+    showTransferReport();
+  });
+}
+
+if (closeTransferReport) {
+  closeTransferReport.addEventListener('click', () => {
+    hideTransferReport();
+  });
+}
+
+if (refreshTransferReport) {
+  refreshTransferReport.addEventListener('click', () => {
+    loadTransferReport(transferReportDays).catch((error) => {
+      setTransferReportLoadingState(false, `No se pudo cargar el reporte: ${error.message}`);
+    });
+  });
+}
+
+if (transferReportFilters.length) {
+  transferReportFilters.forEach((button) => {
+    button.addEventListener('click', () => {
+      const selectedDays = Number(button.dataset.days || 7);
+      loadTransferReport(selectedDays).catch((error) => {
+        setTransferReportLoadingState(false, `No se pudo cargar el reporte: ${error.message}`);
+      });
+    });
   });
 }
 
@@ -1401,6 +1610,10 @@ document.addEventListener('keydown', (event) => {
 
   if (event.key === 'Escape' && watermarkInfoModal && !watermarkInfoModal.hidden) {
     hideWatermarkInfoModal();
+  }
+
+  if (event.key === 'Escape' && transferReportStrip && transferReportStrip.getAttribute('aria-hidden') === 'false') {
+    hideTransferReport();
   }
 });
 

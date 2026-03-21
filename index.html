@@ -62,6 +62,7 @@
 
     <div class="controls">
       <button class="btn" id="donateBtn">Donar</button>
+      <button class="btn-report" id="transferReportBtn" type="button" aria-label="Abrir reporte de donaciones">Reporte de Donaciones</button>
     </div>
 
     <aside class="donate-strip" id="donateStrip" aria-hidden="true">
@@ -79,6 +80,54 @@
           <button class="donate-option" data-value="2000">$2,000</button>
         </div>
         <p class="donate-note" style="text-align:center;">Gracias por ayudar.</p>
+      </div>
+    </aside>
+
+    <aside class="report-strip" id="transferReportStrip" aria-hidden="true">
+      <div class="report-strip__inner">
+        <div class="report-strip__header">
+          <h2>Reporte de Donaciones</h2>
+          <button class="icon-btn" id="closeTransferReport" aria-label="Cerrar">✕</button>
+        </div>
+
+        <div class="report-filters">
+          <button class="report-filter active" data-days="7" type="button">7 dias</button>
+          <button class="report-filter" data-days="30" type="button">30 dias</button>
+          <button class="report-filter" data-days="90" type="button">90 dias</button>
+          <button class="report-refresh" id="refreshTransferReport" type="button">Actualizar</button>
+        </div>
+
+        <div class="report-kpis" id="transferReportKpis">
+          <article class="report-kpi">
+            <p class="report-kpi__label">Total periodo</p>
+            <p class="report-kpi__value" id="kpiTransferTotal">$0.00</p>
+          </article>
+          <article class="report-kpi">
+            <p class="report-kpi__label">Transferencias</p>
+            <p class="report-kpi__value" id="kpiTransferCount">0</p>
+          </article>
+          <article class="report-kpi">
+            <p class="report-kpi__label">Pendientes</p>
+            <p class="report-kpi__value" id="kpiTransferPending">0</p>
+          </article>
+        </div>
+
+        <p class="report-status" id="transferReportStatus">Cargando reporte...</p>
+
+        <div class="report-table-wrap">
+          <table class="report-table" aria-label="Tabla de transferencias recientes">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Description</th>
+                <th>Donador</th>
+                <th>Monto</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="transferReportBody"></tbody>
+          </table>
+        </div>
       </div>
     </aside>
   </main>
