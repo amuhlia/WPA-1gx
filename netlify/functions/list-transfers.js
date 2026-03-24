@@ -177,7 +177,9 @@ exports.handler = async (event) => {
 
     const totals = items.reduce(
       (accumulator, item) => {
-        accumulator.totalAmount += Number(item.amount || 0);
+        if (item.status === 'pagada') {
+          accumulator.totalAmount += Number(item.amount || 0);
+        }
         accumulator.count += 1;
         if (isPendingStatus(item.status)) {
           accumulator.pending += 1;
