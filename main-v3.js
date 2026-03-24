@@ -65,6 +65,11 @@ const dismissPaymentErrorModal = document.getElementById('dismissPaymentErrorMod
 const watermarkTrigger = document.getElementById('watermarkTrigger');
 const watermarkInfoModal = document.getElementById('watermarkInfoModal');
 const closeWatermarkInfoModal = document.getElementById('closeWatermarkInfoModal');
+const transferInfoBtn = document.getElementById('transferInfoBtn');
+const transferInfoModal = document.getElementById('transferInfoModal');
+const closeTransferInfoModal = document.getElementById('closeTransferInfoModal');
+const copyClabe = document.getElementById('copyClabe');
+const copyCuenta = document.getElementById('copyCuenta');
 
 const paymentModal = document.getElementById('paymentModal');
 const closePaymentModal = document.getElementById('closePaymentModal');
@@ -1593,6 +1598,72 @@ if (watermarkInfoModal) {
       hideWatermarkInfoModal();
     }
   });
+}
+
+// Transfer Info Modal
+if (transferInfoBtn) {
+  transferInfoBtn.addEventListener('click', () => {
+    if (transferInfoModal) {
+      transferInfoModal.removeAttribute('hidden');
+    }
+  });
+}
+
+if (closeTransferInfoModal) {
+  closeTransferInfoModal.addEventListener('click', () => {
+    if (transferInfoModal) transferInfoModal.setAttribute('hidden', '');
+  });
+}
+
+if (transferInfoModal) {
+  transferInfoModal.addEventListener('click', (event) => {
+    if (event.target === transferInfoModal) {
+      transferInfoModal.setAttribute('hidden', '');
+    }
+  });
+}
+
+function showCopiedToast() {
+  const existing = document.querySelector('.copied-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'copied-toast';
+  toast.textContent = 'Copiado';
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      toast.classList.add('copied-toast--hidden');
+      setTimeout(() => toast.remove(), 800);
+    }, 200);
+  });
+}
+
+function copyFieldToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(showCopiedToast).catch(() => {
+      copyFallback(text);
+    });
+  } else {
+    copyFallback(text);
+  }
+}
+
+function copyFallback(text) {
+  const el = document.createElement('textarea');
+  el.value = text;
+  el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+  document.body.appendChild(el);
+  el.select();
+  try { document.execCommand('copy'); showCopiedToast(); } catch (_) {}
+  document.body.removeChild(el);
+}
+
+if (copyClabe) {
+  copyClabe.addEventListener('click', () => copyFieldToClipboard(copyClabe.textContent.trim()));
+}
+
+if (copyCuenta) {
+  copyCuenta.addEventListener('click', () => copyFieldToClipboard(copyCuenta.textContent.trim()));
 }
 
 document.addEventListener('keydown', (event) => {

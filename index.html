@@ -61,7 +61,8 @@
     </section>
 
     <div class="controls">
-      <button class="btn" id="donateBtn">Donar</button>
+      <button class="btn-transfer-info" id="transferInfoBtn" type="button" aria-label="Ver datos de transferencia">Datos para<br/>transferencia</button>
+      <button class="btn" id="donateBtn">Donar con<br/>Tarjeta</button>
       <button class="btn-report" id="transferReportBtn" type="button" aria-label="Abrir reporte de donaciones">Reporte<br />de Donaciones</button>
     </div>
 
@@ -277,6 +278,30 @@
       <h2 id="paymentErrorTitle">Error en la confirmación de pago</h2>
       <p id="paymentErrorText">Verifique sus datos de la targeta.</p>
       <button type="button" class="btn-secondary error-modal__action" id="dismissPaymentErrorModal">Cerrar</button>
+    </div>
+  </div>
+
+  <div class="transfer-info-modal" id="transferInfoModal" hidden>
+    <div
+      class="transfer-info-modal__content"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="transferInfoTitle"
+    >
+      <h2 id="transferInfoTitle">Datos de Transferencia</h2>
+      <p class="transfer-info-modal__bank">BANCO SANTANDER</p>
+      <div class="transfer-info-modal__fields">
+        <div class="transfer-info-modal__row">
+          <span class="transfer-info-modal__label">CLABE</span>
+          <button class="transfer-field" id="copyClabe" type="button" aria-label="Copiar CLABE">014694606120529966</button>
+        </div>
+        <div class="transfer-info-modal__row">
+          <span class="transfer-info-modal__label"># de Cuenta</span>
+          <button class="transfer-field" id="copyCuenta" type="button" aria-label="Copiar número de cuenta">60612052996</button>
+        </div>
+      </div>
+      <p class="transfer-info-modal__name">DIANA ARIANE BENDER</p>
+      <button type="button" class="btn-secondary transfer-info-modal__close-btn" id="closeTransferInfoModal">Cerrar</button>
     </div>
   </div>
 

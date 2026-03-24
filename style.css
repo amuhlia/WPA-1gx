@@ -150,6 +150,32 @@ body {
   background: rgba(255, 255, 255, 0.16);
 }
 
+.btn-transfer-info {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  padding: 0.52rem 0.9rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.btn-transfer-info:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .donate-strip {
   position: fixed;
   inset: auto 0 0 0;
@@ -1199,6 +1225,127 @@ body {
 .watermark:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.45);
   outline-offset: 2px;
+}
+
+/* ---- Transfer Info Modal ---- */
+.transfer-info-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1020;
+}
+
+.transfer-info-modal[hidden] {
+  display: none !important;
+}
+
+.transfer-info-modal__content {
+  width: min(92vw, 380px);
+  background: rgba(20, 28, 50, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  padding: 1.5rem 1.25rem;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.transfer-info-modal__content h2 {
+  margin: 0 0 0.8rem;
+  color: #a9c4ff;
+  font-size: 1.25rem;
+}
+
+.transfer-info-modal__bank {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: rgba(255, 255, 255, 0.95);
+  margin: 0 0 1rem;
+  letter-spacing: 0.04em;
+}
+
+.transfer-info-modal__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.transfer-info-modal__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+
+.transfer-info-modal__label {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  min-width: 80px;
+  text-align: left;
+}
+
+.transfer-field {
+  flex: 1;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.95);
+  font-family: monospace;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: right;
+  cursor: pointer;
+  padding: 0;
+}
+
+.transfer-field:hover {
+  color: #a9c4ff;
+}
+
+.transfer-field:active {
+  color: #7bffb2;
+}
+
+.transfer-info-modal__name {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 1.2rem;
+  letter-spacing: 0.02em;
+}
+
+.transfer-info-modal__close-btn {
+  min-width: 8.5rem;
+}
+
+/* Copied toast */
+.copied-toast {
+  position: fixed;
+  bottom: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 200, 120, 0.92);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.55rem 1.4rem;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 2000;
+  opacity: 1;
+  transition: opacity 0.8s ease;
+}
+
+.copied-toast--hidden {
+  opacity: 0;
 }
 
 .watermark-info-modal {
