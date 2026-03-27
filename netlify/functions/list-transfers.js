@@ -28,27 +28,6 @@ function toAmountInMajorUnits(amountInMinor) {
   return value / 100;
 }
 
-function mapTransferStatus(transfer) {
-  if (transfer.reversed) {
-    return 'revertida';
-  }
-  return 'pagada';
-}
-
-function mapPayoutStatus(payout) {
-  const rawStatus = String(payout.status || '').toLowerCase();
-  if (rawStatus === 'paid') {
-    return 'pagada';
-  }
-  if (rawStatus === 'in_transit' || rawStatus === 'pending') {
-    return 'pendiente';
-  }
-  if (rawStatus === 'failed' || rawStatus === 'canceled') {
-    return 'fallida';
-  }
-  return rawStatus || 'desconocido';
-}
-
 function isPendingStatus(status) {
   return status === 'pendiente';
 }
@@ -125,53 +104,22 @@ exports.handler = async (event) => {
       listParams.created = createdFilter;
     }
 
-    const [transferList, payoutList, chargeList] = await Promise.all([
-      stripe.transfers.list(listParams),
-      stripe.payouts.list(listParams),
-      stripe.charges.list(listParams)
-    ]);
+    const chargeList = await stripe.charges.list(listParams);
 
-    const transferItems = (transferList.data || []).map((transfer) => ({
-      id: transfer.id,
-      created: transfer.created,
-      amount: toAmountInMajorUnits(transfer.amount),
-      currency: transfer.currency,
-      description: String(transfer.description || transfer.metadata?.description || '').trim(),
-      destination: transfer.destination || '',
-      status: mapTransferStatus(transfer),
-      source: 'transfer'
-    }));
-
-    const payoutItems = (payoutList.data || []).map((payout) => ({
-      id: payout.id,
-      created: payout.created,
-      amount: toAmountInMajorUnits(payout.amount),
-      currency: payout.currency,
-      description: String(payout.description || payout.statement_descriptor || '').trim(),
-      destination: payout.destination || '',
-      status: mapPayoutStatus(payout),
-      source: 'payout'
-    }));
-
-    const chargeItems = (chargeList.data || []).map((charge) => {
-      const destination = extractDonorName(charge.billing_details?.name);
-
-      return {
-        id: charge.id,
-        created: charge.created,
-        amount: toAmountInMajorUnits(charge.amount),
-        currency: charge.currency,
-        description: String(charge.description || charge.statement_descriptor || '').trim(),
-        destination,
-        status: mapChargeStatus(charge),
-        source: 'charge'
-      };
-    });
-
-    const primaryItems = [...transferItems, ...payoutItems];
-    const sourceItems = primaryItems.length ? primaryItems : chargeItems;
-
-    const items = sourceItems
+    const items = (chargeList.data || [])
+      .map((charge) => {
+        const destination = extractDonorName(charge.billing_details?.name);
+        return {
+          id: charge.id,
+          created: charge.created,
+          amount: toAmountInMajorUnits(charge.amount),
+          currency: charge.currency,
+          description: String(charge.description || charge.statement_descriptor || '').trim(),
+          destination,
+          status: mapChargeStatus(charge),
+          source: 'charge'
+        };
+      })
       .sort((a, b) => Number(b.created || 0) - Number(a.created || 0))
       .slice(0, limit);
 
@@ -200,8 +148,8 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         items,
         totals,
-        hasMore: Boolean(transferList.has_more || payoutList.has_more || chargeList.has_more),
-        reportMode: primaryItems.length ? 'transfers_and_payouts' : 'charges_fallback'
+        hasMore: Boolean(chargeList.has_more),
+        reportMode: 'received'
       })
     };
   } catch (error) {
