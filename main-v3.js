@@ -34,8 +34,11 @@ let selectedSavedMethodId = String(localStorage.getItem(STORAGE_KEYS.activeSaved
 let savedPaymentMethods = [];
 let isCardElementComplete = false;
 let isSubmittingPayment = false;
-let transferReportDays = 7;
+let transferReportDays = 30;
 let isTransferReportLoading = false;
+const TRANSFER_REPORT_GOAL_AMOUNT = 5000;
+const TRANSFER_REPORT_GOAL_TEXT = 'Ayudanos a llegar a nuestra meta mensual: $5,000';
+const TRANSFER_REPORT_GOAL_REACHED_TEXT = '!!Gracias llegamos a la meta de este periodo!!';
 
 const carouselImage = document.getElementById('carouselImage');
 const prevBtn = document.getElementById('prevBtn');
@@ -51,6 +54,7 @@ const transferReportStatus = document.getElementById('transferReportStatus');
 const transferReportBody = document.getElementById('transferReportBody');
 const transferReportFilters = document.querySelectorAll('.report-filter');
 const refreshTransferReport = document.getElementById('refreshTransferReport');
+const transferReportGoal = document.getElementById('transferReportGoal');
 const kpiTransferTotal = document.getElementById('kpiTransferTotal');
 const kpiTransferCount = document.getElementById('kpiTransferCount');
 const kpiTransferPending = document.getElementById('kpiTransferPending');
@@ -570,11 +574,22 @@ function renderTransferReportItems(items) {
     .join('');
 }
 
+function updateTransferReportGoalMessage(totalAmount = 0) {
+  if (!transferReportGoal) {
+    return;
+  }
+
+  const normalizedTotalAmount = Number(totalAmount || 0);
+  const goalReached = transferReportDays === 30 && normalizedTotalAmount >= TRANSFER_REPORT_GOAL_AMOUNT;
+  transferReportGoal.textContent = goalReached ? TRANSFER_REPORT_GOAL_REACHED_TEXT : TRANSFER_REPORT_GOAL_TEXT;
+}
+
 function applyTransferReportKpis(reportData) {
   const totals = reportData?.totals || {};
+  const totalAmount = Number(totals.totalAmount || 0);
 
   if (kpiTransferTotal) {
-    kpiTransferTotal.textContent = formatMoney(totals.totalAmount || 0, totals.currency || bankingCurrency);
+    kpiTransferTotal.textContent = formatMoney(totalAmount, totals.currency || bankingCurrency);
   }
 
   if (kpiTransferCount) {
@@ -584,10 +599,12 @@ function applyTransferReportKpis(reportData) {
   if (kpiTransferPending) {
     kpiTransferPending.textContent = String(totals.pending || 0);
   }
+
+  updateTransferReportGoalMessage(totalAmount);
 }
 
 function applyActiveTransferReportFilter(days) {
-  transferReportDays = Number(days) || 7;
+  transferReportDays = Number(days) || 30;
 
   if (!transferReportFilters.length) {
     return;
@@ -1447,7 +1464,7 @@ if (refreshTransferReport) {
 if (transferReportFilters.length) {
   transferReportFilters.forEach((button) => {
     button.addEventListener('click', () => {
-      const selectedDays = Number(button.dataset.days || 7);
+      const selectedDays = Number(button.dataset.days || 30);
       loadTransferReport(selectedDays).catch((error) => {
         setTransferReportLoadingState(false, `No se pudo cargar el reporte: ${error.message}`);
       });
